@@ -30,7 +30,7 @@ import common
 import warosu_tables
 
 
-
+Base = declarative_base()# Setup system to keep track of tables and classes
 
 
 
@@ -95,21 +95,24 @@ def is_post_in_results(results, thread_num, num, subnum):
 
 
 
-def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread_num, dl_dir):
+def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, thread_num, dl_dir):
     logging.info(u'Fetching thread: {0!r}'.format(thread_num))
     # Calculate values
     thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
     thread_filename = 'warosu.{bn}.{tn}.html'.format(bn=board_name, tn=thread_num)
     thread_filepath = os.path.join(dl_dir, u'{0}'.format(board_name), thread_filename)
     logging.debug(u'thread_url={0!r}'.format(thread_url))
+
     # Look for all posts for this thread in DB
+    logging.debug('About to look for existing posts for this thread')
     existing_posts_q = db_ses.query(SimplePosts)\
         .filter(SimplePosts.thread_num == thread_num,)
     existing_posts = existing_posts_q.all()
     logging.info(u'existing_posts={0!r}'.format(existing_posts))
+    logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
 
     # Load thread
-    thread_res = common.fetch( requests_session=reqs_ses, url=thread_url, )
+    thread_res = common.fetch( requests_session=req_ses, url=thread_url, )
     thread_html = thread_res.content
     # Save for debugging/hoarding
     logging.debug(u'thread_filepath={0!r}'.format(thread_filepath))
@@ -121,17 +124,20 @@ def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread
     soup = bs4.BeautifulSoup(thread_html, u'html.parser')
     # Find posts
     posts = soup.find_all(name=u'table', attrs={u'itemtype':'http://schema.org/Comment',})
+    logging.debug(u'len(posts)={0!r}'.format(len(posts)))
 
     for post in posts:# Process each post
-        logging.debug(u'post={0!r}'.format(post))
+##        logging.debug(u'post={0!r}'.format(post))
+
         # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
         delete_element = post.find_all('input', {'name':'delete'})
         delete_element_string = unicode(delete_element)
         num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', delete_element_string)
-        num_string = pid_search.group(1)
-        subnum_string = pid_search.group(2)
+        num_string = num_search.group(1)
+        subnum_string = num_search.group(2)
         num = int(num_string)
         subnum = int(subnum_string)
+
         # Detect if ghost post
         is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
         if (not is_ghost):# Skip post if not ghost
@@ -145,17 +151,18 @@ def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread
         if post_is_in_db:
             logging.debug(u'Post {0}.{1} in thread {2} already saved'.format(num ,subnum, thread_num))
         else:
+            logging.debug('About to insert ghost post')
             # Add post to DB
             sqlalchemy.insert(SimplePosts)\
                 .values(
-                num=num,
-                subnum=subnum,
-                thread_num=thread_num,
-                post_html=post_html,
-            )
+                    num = num,
+                    subnum = subnum,
+                    thread_num = thread_num,
+                    post_html = post_html,
+                )
+            logging.info('Inserted a ghost post into SimplePosts')
     logging.info(u'Fetched thread: {0!r}'.format(thread_num))
     return
-
 
 
 def dev():
@@ -165,14 +172,15 @@ def dev():
     board_name = u'tg'
     db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
     connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
-    thread_num = 316521 # https://8ch.net/pone/res/316521.html
-    dl_dir = os.path.join('dl', 'warosu_test', '{0}'.format(board_name))
+    logging.debug(u'connection_string={0!r}'.format(connection_string))
+    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
+    dl_dir = os.path.join('dl', 'wtest', '{0}'.format(board_name))
 
     # Setup requests session
     req_ses = requests.Session()
 
     # Prepare board DB classes/table mappers
-    Boards = warosu_tables.table_factory_simple_boards(Base)
+##    Boards = warosu_tables.table_factory_simple_boards(Base)
     SimpleThreads = warosu_tables.table_factory_simple_threads(Base, board_name)
     SimplePosts = warosu_tables.table_factory_simple_posts(Base, board_name)
 ##    Files = warosu_tables.table_factory_files(Base, board_name)
@@ -195,17 +203,16 @@ def dev():
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
 
-
+    # Save a thread
     simple_save_thread(db_ses=db_ses, req_ses=req_ses, SimpleThreads=SimpleThreads,
         SimplePosts=SimplePosts, board_name=board_name, thread_num=thread_num,
         dl_dir=dl_dir
     )
-
     # Persist data now that thread has been grabbed
-    session.commit()
+    db_ses.commit()
 
     logging.info(u'Ending DB session')
-    session.close()# Release connection back to pool.
+    db_ses.close()# Release connection back to pool.
     engine.dispose()# Close all connections.
 
     logging.warning(u'exiting dev()')
@@ -226,84 +233,3 @@ if __name__ == '__main__':
         logging.critical(u"Unhandled exception!")
         logging.exception(e)
     logging.info(u"Program finished.")
-
-
-
-
-
-
-
-
-
-
-# globals for messing with bs4
-
-reqs_ses = requests.Session()
-
-
-
-# Temporarily set values by hand
-dl_dir = u'dl'
-board_name = 'tg'
-thread_num = 40312936
-# Calculate values
-thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
-thread_filename = 'warosu.{bn}.{tn}.html'.format(bn=board_name, tn=thread_num)
-thread_filepath = os.path.join(dl_dir, u'{0}'.format(board_name), thread_filename)
-logging.debug(u'thread_url={0!r}'.format(thread_url))
-# Load thread
-thread_res = common.fetch( requests_session=reqs_ses, url=thread_url, )
-thread_html = thread_res.content
-# Save for debugging/hoarding
-logging.debug(u'thread_filepath={0!r}'.format(thread_filepath))
-common.write_file(# Store page to disk
-    file_path=thread_filepath,
-    data=thread_res.content
-)
-# Parse thread (we only care about ghost posts)
-soup = bs4.BeautifulSoup(thread_html, 'html.parser')
-# Find posts
-posts = soup.find_all(name='table', attrs={'itemtype':'http://schema.org/Comment',})
-
-for post in posts:# Process each post
-    logging.debug(u'post={0!r}'.format(post))
-    # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
-    delete_element = post.find_all('input', {'name':'delete'})
-    delete_element_string = unicode(delete_element)
-    num_search = re.search('<input name="delete" type="checkbox" value="(\d+),(\d+)', delete_element_string)
-    num_string = pid_search.group(1)
-    subnum_string = pid_search.group(2)
-    num = int(num_string)
-    subnum = int(subnum_string)
-    # Detect if ghost post
-    is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
-    if (not is_ghost):# Skip post if not ghost
-        logging.debug(u'Skipping regular reply: num={0!r}, subnum={1!r}'.format(num, subnum))
-        continue
-
-    logging.debug(u'Found ghost reply: num={0!r}, subnum={1!r}'.format(num, subnum))
-    post_html = unicode(post)# If we can't extract original values, maybe we can just store the whole post?
-    # Parse out information from ghost post
-    name = post.find(name='span', attrs={'itemprop':'name',}).text
-    email = post.find(name='span', attrs={'itemprop':'name',}).text
-    pass
-
-
-
-
-
-# Reverse fuuka text transformations
-
-# Given a post's HTML: post_html
-
-
-
-
-
-
-
-
-
-
-
-
