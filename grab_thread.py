@@ -165,8 +165,34 @@ def simple_save_thread(db_ses, req_ses, Threads, Posts, board_name, thread_num, 
                 post_html = post_html,
             )
             db_ses.add(new_post)
-            logging.info('Inserted a ghost post into Posts')
+            logging.info(u'Inserted a ghost post into Posts')
     logging.info(u'Fetched thread: {0!r}'.format(thread_num))
+    return
+
+
+def scan_board_range(req_ses, board_name, dl_dir,
+    low_post_num, high_post_num):
+    logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
+    # Iterate over range
+    for page_num in xrange(low, high):
+        current_page_url = u'https://warosu.org/tg/?task=page&page={pn}&ghost=View+in+Ghost+mode'.format()
+        current_page_filename = u''.format()
+        # <base>/thread_listings/<board_name>/html/<offset>.html
+        current_page_filepath = os.path.join(
+            dl_dir,
+            u'thread_listings',
+            u'{0}'.format(board_name),
+            u'html',
+            current_page_filename
+        )
+        logging.debug(u'current_page_url={0!r}'.format(current_page_url))
+        logging.debug(u'current_page_filename={0!r}'.format(current_page_filename))
+        logging.debug(u'current_page_filepath={0!r}'.format(current_page_filepath))
+        # Load page
+        page_res = common.fetch(requests_session=req_ses, url=thread_url)
+        # Save page for debug
+        write_file(file_path=current_page_filepath, data=page_res.content)
+        # Extract thread numbers
     return
 
 
@@ -179,7 +205,7 @@ def dev():
     connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
     logging.debug(u'connection_string={0!r}'.format(connection_string))
     thread_num = 40312936 # https://warosu.org/tg/thread/40312936
-    dl_dir = os.path.join('dl', 'wtest', '{0}'.format(board_name))
+    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
 
     # Setup requests session
     req_ses = requests.Session()
@@ -188,12 +214,6 @@ def dev():
     Boards = None# warosu_tables.table_factory_simple_boards(Base)
     Threads = None# warosu_tables.table_factory_simple_threads(Base, board_name)
     Posts = warosu_tables.table_factory_simple_posts(Base, board_name)
-##    Files = warosu_tables.table_factory_files(Base, board_name)
-
-    logging.debug(u'Boards={0!r}'.format(Boards))
-    logging.debug(u'Threads={0!r}'.format(Threads))
-    logging.debug(u'Posts={0!r}'.format(Posts))
-##    logging.debug(u'Files={0!r}'.format(Files))
 
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')

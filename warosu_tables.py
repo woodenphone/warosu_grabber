@@ -129,45 +129,43 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 
-##def table_factory_simple_boards(Base):# simple threads table
-##    """We're Java now!
-##    Make a simple, fast-to-code threads table for warosu.
-##    see https://stackoverflow.com/questions/19163911/dynamically-setting-tablename-for-sharding-in-sqlalchemy
-##    TODO: Sane database design"""
-##    logging.debug(u'table_factory_simple_boards() args={0!r}'.format(locals()))# Record arguments.
-##    table_name = u'simpleboards'
-##    logging.debug(u'Naming the images table {0!r}'.format(table_name))
-##    class SimpleBoards(Base):
-##        __tablename__ = table_name
-##        primary_key = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-##        board_num = sqlalchemy.Column(sqlalchemy.Integer, nullable=False)
-##        shortname = sqlalchemy.Column(sqlalchemy.Unicode, nullable=False)
-##        title = sqlalchemy.Column(sqlalchemy.Unicode, nullable=True)
-##        description = sqlalchemy.Column(sqlalchemy.Unicode, nullable=True)
-##        # Misc recordkeeping: (internal use and also for exporting dumps more easily)
-##        row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
-##        row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
-##    return SimpleBoards
-##
-##
-##
-##def table_factory_simple_threads(Base, board_name):# simple threads table
-##    """We're Java now!
-##    Make a simple, fast-to-code threads table for warosu.
-##    see https://stackoverflow.com/questions/19163911/dynamically-setting-tablename-for-sharding-in-sqlalchemy
-##    TODO: Sane database design"""
-##    logging.debug(u'table_factory_simple_threads() args={0!r}'.format(locals()))# Record arguments.
-##    assert(type(board_name) in [unicode])
-##    table_name = u'{0}_simplethreads'.format(board_name)
-##    logging.debug(u'Naming the images table {0!r}'.format(table_name))
-##    class SimpleThreads(Base):
-##        __tablename__ = table_name
-##        primary_key = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-##        thread_num = sqlalchemy.Column(sqlalchemy.Integer, nullable=True, default=0)
-##        # Misc recordkeeping: (internal use and also for exporting dumps more easily)
-##        row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
-##        row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
-##    return SimpleThreads
+def table_factory_simple_boards(Base):# simple threads table
+    """We're Java now!
+    Make a simple, fast-to-code threads table for warosu.
+    see https://stackoverflow.com/questions/19163911/dynamically-setting-tablename-for-sharding-in-sqlalchemy
+    TODO: Sane database design"""
+    logging.debug(u'table_factory_simple_boards() args={0!r}'.format(locals()))# Record arguments.
+    table_name = u'simpleboards'
+    logging.debug(u'Naming the images table {0!r}'.format(table_name))
+    class SimpleBoards(Base):
+        __tablename__ = table_name
+        primary_key = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        board_num = sqlalchemy.Column(sqlalchemy.Integer, nullable=False)
+        shortname = sqlalchemy.Column(sqlalchemy.Unicode, nullable=False)
+        # Misc recordkeeping: (internal use and also for exporting dumps more easily)
+        row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
+        row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
+    return SimpleBoards
+
+
+
+def table_factory_simple_threads(Base, board_name):# simple threads table
+    """We're Java now!
+    Make a simple, fast-to-code threads table for warosu.
+    see https://stackoverflow.com/questions/19163911/dynamically-setting-tablename-for-sharding-in-sqlalchemy
+    TODO: Sane database design"""
+    logging.debug(u'table_factory_simple_threads() args={0!r}'.format(locals()))# Record arguments.
+    assert(type(board_name) in [unicode])
+    table_name = u'{0}_simplethreads'.format(board_name)
+    logging.debug(u'Naming the images table {0!r}'.format(table_name))
+    class SimpleThreads(Base):
+        __tablename__ = table_name
+        primary_key = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        thread_num = sqlalchemy.Column(sqlalchemy.Integer, nullable=True, default=0)
+        # Misc recordkeeping: (internal use and also for exporting dumps more easily)
+        row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
+        row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
+    return SimpleThreads
 
 
 
