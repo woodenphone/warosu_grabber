@@ -83,6 +83,8 @@ def is_post_in_results(results, thread_num, num, subnum):
     If it is, return that row.
     else, return None
     """
+    if len(results) == 0:
+        return None
     for result in results:
         tn = (result.thread_num == thread_num)
         pn = (result.num == num)
@@ -95,7 +97,7 @@ def is_post_in_results(results, thread_num, num, subnum):
 
 
 
-def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, thread_num, dl_dir):
+def simple_save_thread(db_ses, req_ses, Threads, Posts, board_name, thread_num, dl_dir):
     logging.info(u'Fetching thread: {0!r}'.format(thread_num))
     # Calculate values
     thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
@@ -105,10 +107,10 @@ def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, 
 
     # Look for all posts for this thread in DB
     logging.debug('About to look for existing posts for this thread')
-    existing_posts_q = db_ses.query(SimplePosts)\
-        .filter(SimplePosts.thread_num == thread_num,)
+    existing_posts_q = db_ses.query(Posts)\
+        .filter(Posts.thread_num == thread_num,)
     existing_posts = existing_posts_q.all()
-    logging.info(u'existing_posts={0!r}'.format(existing_posts))
+    logging.debug(u'existing_posts={0!r}'.format(existing_posts))
     logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
 
     # Load thread
@@ -128,7 +130,6 @@ def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, 
 
     for post in posts:# Process each post
 ##        logging.debug(u'post={0!r}'.format(post))
-
         # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
         delete_element = post.find_all('input', {'name':'delete'})
         delete_element_string = unicode(delete_element)
@@ -137,7 +138,6 @@ def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, 
         subnum_string = num_search.group(2)
         num = int(num_string)
         subnum = int(subnum_string)
-
         # Detect if ghost post
         is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
         if (not is_ghost):# Skip post if not ghost
@@ -148,19 +148,24 @@ def simple_save_thread(db_ses, req_ses, SimpleThreads, SimplePosts, board_name, 
         # Check if post is already in DB
         post_is_in_db = is_post_in_results(results=existing_posts, thread_num=thread_num,
              num=num, subnum=subnum)
-        if post_is_in_db:
+        if (post_is_in_db):
             logging.debug(u'Post {0}.{1} in thread {2} already saved'.format(num ,subnum, thread_num))
         else:
             logging.debug('About to insert ghost post')
+            logging.debug(u'Posts={0!r}'.format(Posts))
+            logging.debug(u'num={0!r}'.format(num))
+            logging.debug(u'subnum={0!r}'.format(subnum))
+            logging.debug(u'thread_num={0!r}'.format(thread_num))
+            logging.debug(u'post_html={0!r}'.format(post_html))
             # Add post to DB
-            sqlalchemy.insert(SimplePosts)\
-                .values(
-                    num = num,
-                    subnum = subnum,
-                    thread_num = thread_num,
-                    post_html = post_html,
-                )
-            logging.info('Inserted a ghost post into SimplePosts')
+            new_post = Posts(
+                num = num,
+                subnum = subnum,
+                thread_num = thread_num,
+                post_html = post_html,
+            )
+            db_ses.add(new_post)
+            logging.info('Inserted a ghost post into Posts')
     logging.info(u'Fetched thread: {0!r}'.format(thread_num))
     return
 
@@ -180,10 +185,15 @@ def dev():
     req_ses = requests.Session()
 
     # Prepare board DB classes/table mappers
-##    Boards = warosu_tables.table_factory_simple_boards(Base)
-    SimpleThreads = warosu_tables.table_factory_simple_threads(Base, board_name)
-    SimplePosts = warosu_tables.table_factory_simple_posts(Base, board_name)
+    Boards = None# warosu_tables.table_factory_simple_boards(Base)
+    Threads = None# warosu_tables.table_factory_simple_threads(Base, board_name)
+    Posts = warosu_tables.table_factory_simple_posts(Base, board_name)
 ##    Files = warosu_tables.table_factory_files(Base, board_name)
+
+    logging.debug(u'Boards={0!r}'.format(Boards))
+    logging.debug(u'Threads={0!r}'.format(Threads))
+    logging.debug(u'Posts={0!r}'.format(Posts))
+##    logging.debug(u'Files={0!r}'.format(Files))
 
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
@@ -201,18 +211,49 @@ def dev():
     Base.metadata.create_all(checkfirst=True)# Create tables based on classes
     # Create a session to interact with the DB
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
-    db_ses = SessionClass()
+    session = SessionClass()
+
+
+##    sqlalchemy.insert(Posts)\
+##    .values(
+##        num = 1,
+##        subnum = 2,
+##        thread_num = 3,
+##        post_html = u'FAKE POST',
+##    )
+##    sqlalchemy.insert(Posts)\
+##        .values(
+##            num = 1,
+##            subnum = 2,
+##            thread_num = 3,
+##            post_html = u'FAKE POST',
+##            primary_key=12
+##        )
+##    new_post = Posts(
+##        num = 1,
+##        subnum = 2,
+##        thread_num = 3,
+##        post_html = u'FAKE POST',
+##    )
+##    session.add(new_post)
 
     # Save a thread
-    simple_save_thread(db_ses=db_ses, req_ses=req_ses, SimpleThreads=SimpleThreads,
-        SimplePosts=SimplePosts, board_name=board_name, thread_num=thread_num,
+    simple_save_thread(
+        db_ses=session,
+        req_ses=req_ses,
+        Threads=Threads,
+        Posts=Posts,
+        board_name=board_name,
+        thread_num=thread_num,
         dl_dir=dl_dir
     )
+
     # Persist data now that thread has been grabbed
-    db_ses.commit()
+    logging.info(u'Committing')
+    session.commit()
 
     logging.info(u'Ending DB session')
-    db_ses.close()# Release connection back to pool.
+    session.close()# Release connection back to pool.
     engine.dispose()# Close all connections.
 
     logging.warning(u'exiting dev()')
@@ -225,7 +266,7 @@ def main():
 
 
 if __name__ == '__main__':
-    common.setup_logging(os.path.join("debug", "grab_board_py8ch.log.txt"))# Setup logging
+    common.setup_logging(os.path.join("debug", "grab_thread.log.txt"))# Setup logging
     try:
         main()
     # Log exceptions
