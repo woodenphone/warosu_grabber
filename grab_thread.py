@@ -170,29 +170,112 @@ def simple_save_thread(db_ses, req_ses, Threads, Posts, board_name, thread_num, 
     return
 
 
+
+
+def search_for_threads(req_ses, board_name, dl_dir,
+    date_from, date_to, offset):
+    """Load one search page, save it for debugging, and return the response object."""
+    logging.debug(u'search_for_threads() args={0!r}'.format(locals()))# Record arguments.
+    # Generate url for search page
+    current_page_template = (
+        u'https://warosu.org/g/?task=search2'
+        u'&ghost=yes'
+        u'&search_text='
+        u'&search_subject='
+        u'&search_username='
+        u'&search_tripcode='
+        u'&search_email='
+        u'&search_filename='
+        u'&search_datefrom={date_from}'
+        u'&search_dateto={date_to}'
+        u'&search_op=all'
+        u'&search_del=dontcare'
+        u'&search_int=dontcare'
+        u'&search_ord=new'
+        u'&search_capcode=all'
+        u'&search_res=post'
+        u'&offset={offset}'
+    )
+    current_page_url = current_page_template.format(
+        date_from=date_from, date_to=date_to, offset=offset)
+
+    current_page_filename = u'df{df}.dt{dt}.html'.format(df=date_from, dt=date_to)
+    # <base>/thread_listings/<board_name>/html/<offset>.html
+##    current_page_filepath = os.path.join(
+##        dl_dir,
+##        u'thread_listings',
+##        u'{0}'.format(board_name),
+##        u'html',
+##        current_page_filename
+##    )
+    current_page_filepath = os.path.join(# TODO: Put normal dl path generration back in
+        dl_dir,
+        u'temp',
+        current_page_filename
+    )
+    logging.debug(u'current_page_url={0!r}'.format(current_page_url))
+    logging.debug(u'current_page_filename={0!r}'.format(current_page_filename))
+    logging.debug(u'current_page_filepath={0!r}'.format(current_page_filepath))
+    # Load page
+    page_res = common.fetch(requests_session=req_ses, url=current_page_url)
+    # Save page for debug
+    common.write_file(file_path=current_page_filepath, data=page_res.content)
+    return page_res
+
+
+def count_search_ranges(date_from, date_to):
+    pass
+
+
+def date_to_warosu(date):
+    """Convert datetime objects to YYYY-MM-DD strings"""
+    return date.strftime('%Y-%m-%d')
+
+
+def convert_list_str_to_int(values):
+    out_list = []
+    for value in values:
+        out_list.append(int(value))
+    return out_list
+
+
 def scan_board_range(req_ses, board_name, dl_dir,
-    low_post_num, high_post_num):
+    date_from, date_to):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
+
     # Iterate over range
-    for page_num in xrange(low, high):
-        current_page_url = u'https://warosu.org/tg/?task=page&page={pn}&ghost=View+in+Ghost+mode'.format()
-        current_page_filename = u''.format()
-        # <base>/thread_listings/<board_name>/html/<offset>.html
-        current_page_filepath = os.path.join(
-            dl_dir,
-            u'thread_listings',
-            u'{0}'.format(board_name),
-            u'html',
-            current_page_filename
-        )
-        logging.debug(u'current_page_url={0!r}'.format(current_page_url))
-        logging.debug(u'current_page_filename={0!r}'.format(current_page_filename))
-        logging.debug(u'current_page_filepath={0!r}'.format(current_page_filepath))
-        # Load page
-        page_res = common.fetch(requests_session=req_ses, url=thread_url)
-        # Save page for debug
-        write_file(file_path=current_page_filepath, data=page_res.content)
-        # Extract thread numbers
+    weekdelta = datetime.timedelta(days=7)# One week's difference in time towards the future
+    working_date = date_from# Initialise at low end
+    all_thread_ids = []
+    while working_date < date_to:
+        logging.debug(u'working_date={0!r}'.format(working_date))
+        fut_date = working_date + weekdelta
+        logging.debug(u'fut_date={0!r}'.format(fut_date))
+        for page_counter in xrange(1, 1000):
+            offset = page_counter * 24# 24 posts per search page
+            logging.debug(u'offset={0!r}'.format(offset))
+            # Read one search page
+            res = search_for_threads(
+                req_ses=req_ses,
+                board_name=board_name,
+                dl_dir=dl_dir,
+                date_from=date_to_warosu(date=working_date),
+                date_to=date_to_warosu(date=fut_date),
+                offset=offset
+            )
+            # Extract thread numbers
+            thread_ids = re.findall('/\w+/thread/S?(\d+)', res.content)
+            logging.debug(u'thread_ids={0!r}'.format(thread_ids))
+            # Store thread numbers
+            all_thread_ids += thread_ids
+            # Check if end of results reached
+            if len(thread_ids) == 0:
+                break
+            continue
+        # Go forward a week
+        working_date += weekdelta
+        continue
+    logging.info(u'Finished searching')
     return
 
 
@@ -209,6 +292,17 @@ def dev():
 
     # Setup requests session
     req_ses = requests.Session()
+
+    scan_board_range(
+        req_ses=req_ses,
+        board_name=board_name,
+        dl_dir=dl_dir,
+        date_from = datetime.date(2018, 1, 1),# Year, month, day of month
+        date_to = datetime.date(2019, 1, 1),
+##        date_from = u'2018-1-1',
+##        date_to = u'2019-1-1',
+    )
+    return
 
     # Prepare board DB classes/table mappers
     Boards = None# warosu_tables.table_factory_simple_boards(Base)
@@ -233,40 +327,16 @@ def dev():
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     session = SessionClass()
 
-
-##    sqlalchemy.insert(Posts)\
-##    .values(
-##        num = 1,
-##        subnum = 2,
-##        thread_num = 3,
-##        post_html = u'FAKE POST',
+##    # Save a thread
+##    simple_save_thread(
+##        db_ses=session,
+##        req_ses=req_ses,
+##        Threads=Threads,
+##        Posts=Posts,
+##        board_name=board_name,
+##        thread_num=thread_num,
+##        dl_dir=dl_dir
 ##    )
-##    sqlalchemy.insert(Posts)\
-##        .values(
-##            num = 1,
-##            subnum = 2,
-##            thread_num = 3,
-##            post_html = u'FAKE POST',
-##            primary_key=12
-##        )
-##    new_post = Posts(
-##        num = 1,
-##        subnum = 2,
-##        thread_num = 3,
-##        post_html = u'FAKE POST',
-##    )
-##    session.add(new_post)
-
-    # Save a thread
-    simple_save_thread(
-        db_ses=session,
-        req_ses=req_ses,
-        Threads=Threads,
-        Posts=Posts,
-        board_name=board_name,
-        thread_num=thread_num,
-        dl_dir=dl_dir
-    )
 
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')

@@ -191,6 +191,35 @@ def table_factory_simple_posts(Base, board_name):# simple threads table
     return SimplePosts
 
 
+
+
+
+
+def table_factory_really_simple_threads(Base, board_name):# simple threads table
+    """We're Java now!
+    Make a simple, fast-to-code threads table for warosu.
+    see https://stackoverflow.com/questions/19163911/dynamically-setting-tablename-for-sharding-in-sqlalchemy
+    TODO: Sane database design"""
+    logging.debug(u'table_factory_simple_threads() args={0!r}'.format(locals()))# Record arguments.
+    assert(type(board_name) in [unicode])
+    table_name = u'{0}_simplethreads'.format(board_name)
+    logging.debug(u'Naming the images table {0!r}'.format(table_name))
+    class SimpleThreads(Base):
+        __tablename__ = table_name
+        # There can only be one thread per ID.
+        # ThreadID will always be integer  where (n >= 0)
+        thread_num = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        # Misc recordkeeping: (internal use and also for exporting dumps more easily)
+        is_new = sqlalchemy.Column(sqlalchemy.Boolean, nullable=True, default=True)
+        row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
+        row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
+    return SimpleThreads
+
+
+
+
+
+
 def main():
     pass
 
