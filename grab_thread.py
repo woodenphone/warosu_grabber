@@ -296,15 +296,15 @@ def dev():
     # Setup requests session
     req_ses = requests.Session()
 
-    scan_board_range(
-        req_ses=req_ses,
-        board_name=board_name,
-        dl_dir=dl_dir,
-        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
-        date_to = datetime.date(2019, 1, 1),
-##        date_from = u'2018-1-1',
-##        date_to = u'2019-1-1',
-    )
+##    scan_board_range(
+##        req_ses=req_ses,
+##        board_name=board_name,
+##        dl_dir=dl_dir,
+##        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
+##        date_to = datetime.date(2019, 1, 1),
+####        date_from = u'2018-1-1',
+####        date_to = u'2019-1-1',
+##    )
     return
 
     # Prepare board DB classes/table mappers

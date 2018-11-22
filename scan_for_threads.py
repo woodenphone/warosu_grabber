@@ -100,10 +100,35 @@ def convert_list_str_to_int(values):
     return out_list
 
 
-def insert_threads_to_db(db_ses, Threads, thread_ids):
+def insert_if_new(db_ses, SimpleThreads, thread_ids):
+    # See if thread ID(s) in DB:
     new_threads = []
     for thread_id in thread_ids:
-        new_thread = Threads(
+        # Lookup thread_id
+        check_q = db_ses.query(SimpleThreads)\
+            .filter(SimpleThreads.thread_id == thread_id,)
+        check_result = post_check_q.first()
+        if check_result:
+            # UPDATE
+            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_id))
+            continue
+        else:
+            # INSERT
+            logging.debug('staging thread for insert: {0!r}'.format(thread_id))
+            new_thread = SimpleThreads(
+                thread_num = thread_id,
+            )
+            new_threads.append(new_thread)# Insert thread_id
+    if len(new_threads) > 0:
+        logging.debug('Inserting new threads')
+        db_ses.add_all(new_threads)
+        db_ses.commit()
+
+
+def insert_threads_to_db(db_ses, SimpleThreads, thread_ids):
+    new_threads = []
+    for thread_id in thread_ids:
+        new_thread = SimpleThreads(
             thread_num = thread_id,
         )
         new_threads.append(new_thread)
@@ -112,9 +137,10 @@ def insert_threads_to_db(db_ses, Threads, thread_ids):
     return
 
 
-def scan_board_range(db_ses, Threads, req_ses, board_name,
+def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
     dl_dir, date_from, date_to):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
+    logging.debug('l{l}.h{h}.txt'.format(l=date_from, h=date_to))
     # Iterate over range
     weekdelta = datetime.timedelta(days=7)# One week's difference in time towards the future
     working_date = date_from# Initialise at low end
@@ -147,17 +173,22 @@ def scan_board_range(db_ses, Threads, req_ses, board_name,
             unique_thread_ids = common.uniquify(thread_ids)
             logging.debug(u'unique_thread_ids={0!r}'.format(unique_thread_ids))
             # Store thread numbers to DB
-            insert_threads_to_db(db_ses=db_ses, Threads=Threads, thread_ids=unique_thread_ids)
+##            insert_threads_to_db(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_ids=unique_thread_ids)
+            insert_if_new(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_ids=unique_thread_ids)
             # Store thread numbers
             all_thread_ids += unique_thread_ids
+            logging.debug(u'len(all_thread_ids)={0!r}'.format(len(all_thread_ids)))
             # Check if end of results reached
             if len(thread_ids) == 0:
+                logging.info('No threads found on this page, moving on to next date range')
                 break
             continue
         # Go forward a week
+        logging.debug('Incrementing working date')
         working_date += weekdelta
         continue
     # Save threadIDs to file as a backup
+    thread_ids_dump_path - os.path.join(dl_dir, 'threads', 'l{l}.h{h}.txt'.format(l=date_from, h=date_to))
     with open(thread_ids_dump_path, 'w') as df:
         for thread_id_out in all_thread_ids:
             df.append('{0}'.format(thread_id_out))
@@ -177,7 +208,7 @@ def dev():
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
-    Threads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
+    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
     db_dir, db_filename = os.path.split(db_filepath)
@@ -198,19 +229,19 @@ def dev():
     # Scan the range
     scan_board_range(
         db_ses=db_ses,
-        Threads=Threads,
+        SimpleThreads=SimpleThreads,
         req_ses=req_ses,
         board_name=board_name,
         dl_dir=dl_dir,
-        date_from = datetime.date(2018, 1, 1),# Year, month, day of month
-        date_to = datetime.date(2019, 1, 1),
+        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
+        date_to = datetime.date(2018, 11, 2),# Year, month, day of month
     )
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
     db_ses.commit()
     # Gracefully disconnect from DB
     logging.info(u'Ending DB session')
-    session.close()# Release connection back to pool.
+    db_ses.close()# Release connection back to pool.
     engine.dispose()# Close all connections.
     logging.warning(u'exiting dev()')
     return
