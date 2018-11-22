@@ -36,9 +36,7 @@ Base = declarative_base()# Setup system to keep track of tables and classes
 
 
 
-def parse_ghost_post():
-    ghost_post_data = []
-    return ghost_post_data
+
 
 
 
@@ -282,6 +280,266 @@ def scan_board_range(req_ses, board_name, dl_dir,
     return
 
 
+def remove_cf_email_garbage(html):
+    # erase cloudflare email hiding junk
+    clean_html = re.sub('<a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="\w+">\[email&#160;protected\]</a>', '', html)
+    return clean_html
+
+
+
+##def parse_post(fragment, thread_num, ghost_only=False):
+##    """Accepts a post's html fragment for a thread"""
+##    # doc_id: Cannot retrive
+##    # num, subnum:
+##    num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', fragment)
+##    num_string = num_search.group(1)
+##    subnum_string = num_search.group(2)
+##    num = int(num_string)
+##    subnum = int(subnum_string)
+##    if ghost_only:
+##        if subnum == 0:
+##            return None
+##    # media_id:
+##    # op:
+##    # timestamp:
+##    # timestamp_expired:
+##    # preview_orig:
+##    # preview_w:
+##    # preview_h:
+##    # media_filename:
+##    # media_w
+##    # media_h:
+##    # media_size:
+##    # media_hash:
+##    # media_orig:
+##    # spoiler:
+##    # deleted:
+##    # capcode:
+##    # email: CLOUDFLARE FUCKS THIS UP
+##    # name:
+##    # trip:
+##    # title:
+##    # comment:
+##    # delpass: Can't retrieve this
+##    # sticky:
+##    # locked:
+##    # poster_hash:
+##    # poster_country:
+##    # exif:
+##    # Assemble collected values
+##    post_data = {
+##        u'num':num,
+##        u'subnum':subnum,
+##        u'thread_num': thread_num,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##        u'TODO': TODO,
+##
+##    }
+##    return post_data
+
+
+
+
+
+
+def parse_post_include_file(html):
+    """
+    use constant POSTS_INCLUDE_FILE => <<'HERE';
+    <if $file>
+    	<span>File: <var make_filesize_string($media_size)>, <var $media_w>x<var $media_h>, <var $media><!-- <var $media_hash> --></span>
+
+    	[<a href="<var $self>/image/<var urlsafe_b64encode(urlsafe_b64decode($media_hash))>">View same</a>] [<a href="http://iqdb.org/?url=<var $absolute_path><var $file>">iqdb</a>]
+
+    	<br />
+
+    	<if $fullfile><a href="<var $fullfile>">
+    	<elsif $media_filename><a rel="noreferrer" href="<var "$images_link/$media_filename">">
+    	</if>
+
+    	<if $file><img class="thumb" src="<var $file>" alt="<var $num>" <if $preview_w>width="<var $preview_w>" height="<var $preview_h>"</if> /></if>
+
+    	<if $fillfile or $media_filename></a></if>
+
+    	<if not $file><img src="<const MEDIA_LOCATION_HTTP>/error.png" alt="ERROR" class="nothumb" title="No thumbnail" /></if>
+    </if>
+    HERE
+    """
+    f_regex = (
+    ''
+    ''
+    ''
+    ''
+    ''
+    )
+
+    file_values = {}
+    return file_values
+
+
+
+def parse_ghost_post(fragment, thread_num):
+    """Accepts a post's html fragment for a thread"""
+    # doc_id: Cannot retrive
+    # num, subnum:
+    num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', fragment)
+    num_string = num_search.group(1)
+    subnum_string = num_search.group(2)
+    num = int(num_string)
+    subnum = int(subnum_string)
+    if subnum == 0:
+        return None
+
+    #
+    """
+    from templates.pl POSTS_INCLUDE_FILE
+    to match:
+    <span>File: <var make_filesize_string($media_size)>, <var $media_w>x<var $media_h>, <var $media><!-- <var $media_hash> --></span>
+    """
+    file_regex_1 = (
+    '<span>File: '
+    '(\w+)'# <var make_filesize_string($media_size)>
+    ', '
+    '(\d+)'# <var $media_w>
+    'x'
+    '(\d+)'# <var $media_h>
+    ', '
+    '([a-zA-Z0-9]+)'# <var $media>
+    '<!-- '
+    '([a-zA-Z0-9=]+)'# <var $media_hash>
+    ' --></span>'
+    )
+
+    f_search_1 = re.search(file_regex_1, fragment)
+    if f_search_1:
+        # File present
+        filesize_string = f_search_1.group(1)
+        media_w = f_search_1.group(2)
+        media_h = f_search_1.group(3)
+        media = f_search_1.group(4)
+        media_hash = f_search_1.group(5)
+    else:
+        # No file
+        filesize_string = None
+        media_w = None
+        media_h = None
+        media = None
+        media_hash = None
+
+    file_regex_2 = (
+    ''
+    ''
+    ''
+    ''
+    )
+
+
+    # media_id:
+
+
+    # op:
+    # timestamp:
+    # timestamp_expired:
+    # preview_orig:
+    # preview_w:
+    # preview_h:
+    # media_filename:
+    # media_w
+    # media_h:
+    # media_size:
+    # media_hash:
+    # media_orig:
+    # spoiler:
+    # deleted:
+    # capcode:
+    # email: CLOUDFLARE FUCKS THIS UP
+    # name:
+    # trip:
+    # title:
+    # comment:
+    # delpass: Can't retrieve this
+    # sticky:
+    # locked:
+    # poster_hash:
+    # poster_country:
+    # exif:
+
+    # Assemble collected values
+    post_data = {
+        u'num':num,
+        u'subnum':subnum,
+        u'thread_num': thread_num,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+        u'TODO': TODO,
+
+    }
+    return post_data
+
+
+
+def parse_thread(html, thread_num, thread_url):
+    # Split into post HTML fagments
+    # Make sure OP is included
+    posts = []
+    for fragment in fragments:
+        # Decide if post needs recording
+        if (u'' in fragment):
+            # Extract data from post
+            post = parse_ghost_post(fragment)
+            posts.append(post)
+    thread = {
+        u'thread_num':thread_num,
+        u'thread_url':thread_url,
+        u'posts': posts,
+    }
+    return posts_data
+
+
+
+
+def dev3():
+    logging.warning(u'running dev3()')
+    # Load from file
+    thread_num = 1
+    thread_url = u''
+    html = common.read_file(os.path.join())
+    # Parse thread
+    posts = parse_thread(html, thread_num, thread_url)
+    logging.warning(u'exiting dev3()')
+    return
+
+
 def dev():
     logging.warning(u'running dev()')
 
@@ -354,7 +612,7 @@ def dev():
 
 
 def main():
-    dev()
+    dev3()
     return
 
 
