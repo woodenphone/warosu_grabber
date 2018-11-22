@@ -228,7 +228,7 @@ def count_search_ranges(date_from, date_to):
 
 
 def date_to_warosu(date):
-    """Convert datetime objects to YYYY-MM-DD strings"""
+    """Convert datetime objects to YYYY-MM-DD strings for Warosu's Fuuka searh"""
     return date.strftime('%Y-%m-%d')
 
 
@@ -268,11 +268,14 @@ def scan_board_range(req_ses, board_name, dl_dir,
             logging.debug(u'thread_ids={0!r}'.format(thread_ids))
             # Store thread numbers
             all_thread_ids += thread_ids
+            logging.debug(u'len(all_thread_ids)={0!r}'.format(len(all_thread_ids)))
             # Check if end of results reached
             if len(thread_ids) == 0:
+                logging.info('No threads found on this page, moving on to next date range')
                 break
             continue
         # Go forward a week
+        logging.debug('Incrementing working date')
         working_date += weekdelta
         continue
     logging.info(u'Finished searching')
@@ -297,7 +300,7 @@ def dev():
         req_ses=req_ses,
         board_name=board_name,
         dl_dir=dl_dir,
-        date_from = datetime.date(2018, 1, 1),# Year, month, day of month
+        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
         date_to = datetime.date(2019, 1, 1),
 ##        date_from = u'2018-1-1',
 ##        date_to = u'2019-1-1',

@@ -100,7 +100,19 @@ def convert_list_str_to_int(values):
     return out_list
 
 
-def scan_board_range(db_ses, req_ses, board_name,
+def insert_threads_to_db(db_ses, Threads, thread_ids):
+    new_threads = []
+    for thread_id in thread_ids:
+        new_thread = Threads(
+            thread_num = thread_id,
+        )
+        new_threads.append(new_thread)
+    db_ses.add_all(new_threads)
+    db_ses.commit()
+    return
+
+
+def scan_board_range(db_ses, Threads, req_ses, board_name,
     dl_dir, date_from, date_to):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
     # Iterate over range
@@ -126,10 +138,18 @@ def scan_board_range(db_ses, req_ses, board_name,
                 offset=offset
             )
             # Extract thread numbers
-            thread_ids = re.findall('/\w+/thread/S?(\d+)', res.content)
+            thread_id_strings = re.findall('/\w+/thread/S?(\d+)', res.content)
+            logging.debug(u'thread_id_strings={0!r}'.format(thread_id_strings))
+            logging.debug(u'len(thread_id_strings)={0!r}'.format(len(thread_id_strings)))
+            thread_ids = convert_list_str_to_int(thread_id_strings)
             logging.debug(u'thread_ids={0!r}'.format(thread_ids))
+            logging.debug(u'len(thread_ids)={0!r}'.format(len(thread_ids)))
+            unique_thread_ids = common.uniquify(thread_ids)
+            logging.debug(u'unique_thread_ids={0!r}'.format(unique_thread_ids))
+            # Store thread numbers to DB
+            insert_threads_to_db(db_ses=db_ses, Threads=Threads, thread_ids=unique_thread_ids)
             # Store thread numbers
-            all_thread_ids += thread_ids
+            all_thread_ids += unique_thread_ids
             # Check if end of results reached
             if len(thread_ids) == 0:
                 break
@@ -157,7 +177,7 @@ def dev():
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
-    Threads = table_factory_really_simple_threads(Base, board_name)
+    Threads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
     db_dir, db_filename = os.path.split(db_filepath)
@@ -178,6 +198,7 @@ def dev():
     # Scan the range
     scan_board_range(
         db_ses=db_ses,
+        Threads=Threads,
         req_ses=req_ses,
         board_name=board_name,
         dl_dir=dl_dir,

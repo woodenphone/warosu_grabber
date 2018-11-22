@@ -208,8 +208,11 @@ def table_factory_really_simple_threads(Base, board_name):# simple threads table
         __tablename__ = table_name
         # There can only be one thread per ID.
         # ThreadID will always be integer  where (n >= 0)
-        thread_num = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        # ThreadID will always be unique
+##        thread_num = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+        thread_num = sqlalchemy.Column(sqlalchemy.Integer, nullable=True)
         # Misc recordkeeping: (internal use and also for exporting dumps more easily)
+        primary_key = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
         is_new = sqlalchemy.Column(sqlalchemy.Boolean, nullable=True, default=True)
         row_created = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, default=datetime.datetime.utcnow)
         row_updated = sqlalchemy.Column(sqlalchemy.DateTime, nullable=True, onupdate=datetime.datetime.utcnow)
