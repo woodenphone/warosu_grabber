@@ -100,36 +100,36 @@ def convert_list_str_to_int(values):
     return out_list
 
 
-def insert_if_new(db_ses, SimpleThreads, thread_ids):
+def insert_if_new(db_ses, SimpleThreads, thread_nums):
     # See if thread ID(s) in DB:
     new_threads = []
-    for thread_id in thread_ids:
-        # Lookup thread_id
+    for thread_num in thread_nums:
+        # Lookup thread_num
         check_q = db_ses.query(SimpleThreads)\
-            .filter(SimpleThreads.thread_id == thread_id,)
-        check_result = post_check_q.first()
+            .filter(SimpleThreads.thread_num == thread_num,)
+        check_result = check_q.first()
         if check_result:
             # UPDATE
-            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_id))
+            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
             continue
         else:
             # INSERT
-            logging.debug('staging thread for insert: {0!r}'.format(thread_id))
+            logging.debug('staging thread for insert: {0!r}'.format(thread_num))
             new_thread = SimpleThreads(
-                thread_num = thread_id,
+                thread_num = thread_num,
             )
-            new_threads.append(new_thread)# Insert thread_id
+            new_threads.append(new_thread)# Insert thread_num
     if len(new_threads) > 0:
         logging.debug('Inserting new threads')
         db_ses.add_all(new_threads)
         db_ses.commit()
 
 
-def insert_threads_to_db(db_ses, SimpleThreads, thread_ids):
+def insert_threads_to_db(db_ses, SimpleThreads, thread_nums):
     new_threads = []
-    for thread_id in thread_ids:
+    for thread_num in thread_nums:
         new_thread = SimpleThreads(
-            thread_num = thread_id,
+            thread_num = thread_num,
         )
         new_threads.append(new_thread)
     db_ses.add_all(new_threads)
@@ -144,7 +144,8 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
     # Iterate over range
     weekdelta = datetime.timedelta(days=7)# One week's difference in time towards the future
     working_date = date_from# Initialise at low end
-    all_thread_ids = []
+    all_thread_nums = []
+    total_pages = 0
     while working_date < date_to:
         # Generate our current date range
         logging.debug(u'working_date={0!r}'.format(working_date))
@@ -152,6 +153,7 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
         logging.debug(u'fut_date={0!r}'.format(fut_date))
         # Iterate over offsets in the current date range
         for page_counter in xrange(1, 1000):
+            total_pages += 1
             offset = page_counter * 24# 24 posts per search page
             logging.debug(u'offset={0!r}'.format(offset))
             # Read one search page
@@ -164,22 +166,22 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
                 offset=offset
             )
             # Extract thread numbers
-            thread_id_strings = re.findall('/\w+/thread/S?(\d+)', res.content)
-            logging.debug(u'thread_id_strings={0!r}'.format(thread_id_strings))
-            logging.debug(u'len(thread_id_strings)={0!r}'.format(len(thread_id_strings)))
-            thread_ids = convert_list_str_to_int(thread_id_strings)
-            logging.debug(u'thread_ids={0!r}'.format(thread_ids))
-            logging.debug(u'len(thread_ids)={0!r}'.format(len(thread_ids)))
-            unique_thread_ids = common.uniquify(thread_ids)
-            logging.debug(u'unique_thread_ids={0!r}'.format(unique_thread_ids))
+            thread_num_strings = re.findall('/\w+/thread/S?(\d+)', res.content)
+            logging.debug(u'thread_num_strings={0!r}'.format(thread_num_strings))
+            logging.debug(u'len(thread_num_strings)={0!r}'.format(len(thread_num_strings)))
+            thread_nums = convert_list_str_to_int(thread_num_strings)
+            logging.debug(u'thread_nums={0!r}'.format(thread_nums))
+            logging.debug(u'len(thread_nums)={0!r}'.format(len(thread_nums)))
+            unique_thread_nums = common.uniquify(thread_nums)
+            logging.debug(u'unique_thread_nums={0!r}'.format(unique_thread_nums))
             # Store thread numbers to DB
-##            insert_threads_to_db(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_ids=unique_thread_ids)
-            insert_if_new(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_ids=unique_thread_ids)
+##            insert_threads_to_db(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_nums=unique_thread_nums)
+            insert_if_new(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_nums=unique_thread_nums)
             # Store thread numbers
-            all_thread_ids += unique_thread_ids
-            logging.debug(u'len(all_thread_ids)={0!r}'.format(len(all_thread_ids)))
+            all_thread_nums += unique_thread_nums
+            logging.debug(u'len(all_thread_nums)={0!r}'.format(len(all_thread_nums)))
             # Check if end of results reached
-            if len(thread_ids) == 0:
+            if len(thread_nums) == 0:
                 logging.info('No threads found on this page, moving on to next date range')
                 break
             continue
@@ -187,11 +189,13 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
         logging.debug('Incrementing working date')
         working_date += weekdelta
         continue
+    logging.debug(u'total_pages={0!r}'.format(total_pages))
     # Save threadIDs to file as a backup
-    thread_ids_dump_path - os.path.join(dl_dir, 'threads', 'l{l}.h{h}.txt'.format(l=date_from, h=date_to))
-    with open(thread_ids_dump_path, 'w') as df:
-        for thread_id_out in all_thread_ids:
-            df.append('{0}'.format(thread_id_out))
+    thread_nums_dump_path = os.path.join(dl_dir, 'threads', 'l{l}.h{h}.txt'.format(l=date_from, h=date_to))
+    logging.debug(u'thread_nums_dump_path={0!r}'.format(thread_nums_dump_path))
+    with open(thread_nums_dump_path, 'w') as df:
+        for thread_num_out in all_thread_nums:
+            df.append('{0}'.format(thread_num_out))
     logging.info(u'Finished searching')
     return
 
