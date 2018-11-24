@@ -81,7 +81,8 @@ def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread
     # Parse thread (we only care about ghost posts)
     soup = bs4.BeautifulSoup(thread_html, u'html.parser')
     # Find posts
-    posts = soup.find_all(name=u'table', attrs={u'itemtype':'http://schema.org/Comment',})
+    posts = soup.find_all(name=u'table', attrs={u'itemtype':'http://schema.org/Comment',})# TODO WARNING This may miss op!
+    logging.warning('The current method of post finding may miss OP!')
     logging.debug(u'len(posts)={0!r}'.format(len(posts)))
     for post in posts:# Process each post
 ##        logging.debug(u'post={0!r}'.format(post))
@@ -136,7 +137,8 @@ def thread_simple_dev():
     db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
     connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
     logging.debug(u'connection_string={0!r}'.format(connection_string))
-    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
+    thread_num = 40312936 # https://warosu.org/tg/thread/40312936 #Ghost post example
+    thread_num = 40312392 # https://warosu.org/tg/thread/40312392 # Tripcode example
     dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
     # Setup requests session
     req_ses = requests.Session()

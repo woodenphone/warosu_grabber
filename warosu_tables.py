@@ -18,6 +18,14 @@ from sqlalchemy.ext.declarative import declarative_base
 # local
 
 
+# ===== 4chan API-style =====
+# As close a match to the 4chan API as possible
+# MAY NOT GET IMPLIMENTED
+
+
+# ===== FoolFuuka-style =====
+# As close a match to Foolfuuka/Asagi/Fuuka as possible
+
 ##def table_factory_threads(Base, board_name):# Threads table
 ##    """We're Java now!
 ##    Make the 'x_threads' table for a 4chan board.
@@ -126,8 +134,8 @@ from sqlalchemy.ext.declarative import declarative_base
 
 
 
-
-
+# ===== Simple =====
+# Few fields
 
 def table_factory_simple_boards(Base):# simple threads table
     """We're Java now!
@@ -193,7 +201,8 @@ def table_factory_simple_posts(Base, board_name):# simple threads table
 
 
 
-
+# ===== Really Simple =====
+# Absolute minimum number of fields
 
 def table_factory_really_simple_threads(Base, board_name):# simple threads table
     """We're Java now!

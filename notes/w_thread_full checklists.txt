@@ -1,0 +1,53 @@
+Checklists for w_thread_full.py
+
+Definition of states:
+[ ] Unstarted
+[.] In-progress
+[o] Working
+[x] Final-level done
+[?] Unknown
+[!] Urgent
+[z] Low-priority/can wait
+
+
+# parse_ghost_post()
+# Value extraction status
+# (These are the FF DB columns)
+[ ] doc_id: (Unlikely to be able to get this)
+[ ] media_id: Can we obtain this?
+[ ] poster_ip: (Unlikely to be able to get this)
+[ ] num:
+[ ] subnum:
+[ ] thread_num:
+[ ] op:
+[ ] timestamp:
+[ ] timestamp_expired:
+[ ] preview_orig:
+[ ] preview_w:
+[ ] preview_h:
+[o] media_filename:
+[o] media_w
+[o] media_h:
+[.] media_size:
+[o] media_hash:
+[ ] media_orig:
+[ ] spoiler:
+[ ] deleted:
+[ ] capcode:
+[ ] email: CLOUDFLARE FUCKS THIS UP
+[.] name:
+[ ] trip:
+[ ] title:
+[ ] comment:
+[ ] delpass: Can't retrieve this
+[ ] sticky: (Is this OP-only?)
+[ ] locked: (Is this OP-only?)
+[ ] poster_hash:
+[ ] poster_country:
+[ ] exif:
+
+
+
+
+
+
