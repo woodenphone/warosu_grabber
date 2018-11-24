@@ -231,20 +231,33 @@ def download_file(reqs_ses, url, filepath):
 def uniquify(seq, idfun=None):
     # List uniquifier from
     # http://www.peterbe.com/plog/uniqifiers-benchmark
-   # order preserving
-   if idfun is None:
-       def idfun(x): return x
-   seen = {}
-   result = []
-   for item in seq:
-       marker = idfun(item)
-       # in old Python versions:
-       # if seen.has_key(marker)
-       # but in new ones:
-       if marker in seen: continue
-       seen[marker] = 1
-       result.append(item)
-   return result
+    # order preserving
+    if idfun is None:
+        def idfun(x): return x
+    seen = {}
+    result = []
+    for item in seq:
+        marker = idfun(item)
+        # in old Python versions:
+        # if seen.has_key(marker)
+        # but in new ones:
+        if marker in seen: continue
+        seen[marker] = 1
+        result.append(item)
+    return result
+
+
+def date_to_warosu(date):
+    """Convert datetime objects to YYYY-MM-DD strings for Warosu's Fuuka searh"""
+    return date.strftime('%Y-%m-%d')
+
+
+def convert_list_str_to_int(values):
+    """Convert a list of strings/unicode strings to a list of ints"""
+    out_list = []
+    for value in values:
+        out_list.append(int(value))
+    return out_list
 
 
 def main():
