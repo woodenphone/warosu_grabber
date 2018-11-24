@@ -212,10 +212,6 @@ def spoiler(fragment):
     spoiler: Was post spoilered on 4chan."""
     # <if $spoiler><img class="inline" src="<const MEDIA_LOCATION_HTTP>/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;</if>
     spoiler_indicator = u'/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;'
-    logging.debug(u'spoiler() type(spoiler_indicator)={0!r}'.format(type(spoiler_indicator)))
-    logging.debug(u'spoiler() spoiler_indicator={0!r}'.format(spoiler_indicator))
-    logging.debug(u'spoiler() type(fragment)={0!r}'.format(type(fragment)))
-    logging.debug(u'spoiler() fragment={0!r}'.format(fragment))
     spoiler = (spoiler_indicator in fragment)
     return spoiler
 
@@ -300,7 +296,6 @@ def title(fragment):
         return title
     else:
         return None# NULL
-
 
 
 

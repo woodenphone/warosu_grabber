@@ -62,28 +62,17 @@ def search_for_threads(req_ses, board_name, dl_dir,
     current_page_url = current_page_template.format(
         date_from=date_from, date_to=date_to, offset=offset)
     logging.debug(u'current_page_url={0!r}'.format(current_page_url))
-
     # Load page
     page_res = common.fetch(requests_session=req_ses, url=current_page_url)
-
+##    # Save page for debug
 ##    current_page_filename = u'df{df}.dt{dt}.html'.format(df=date_from, dt=date_to)
 ##    # <base>/thread_listings/<board_name>/html/<offset>.html
 ##    current_page_filepath = os.path.join(
-##        dl_dir,
-##        u'thread_listings',
-##        u'{0}'.format(board_name),
-##        u'html',
-##        current_page_filename
-##    )
+##        dl_dir, u'thread_listings', board_name, u'html', current_page_filename )
 ##    current_page_filepath = os.path.join(# TODO: Put normal dl path generration back in
-##        dl_dir,
-##        u'temp',
-##        current_page_filename
-##    )
+##        dl_dir, u'temp', current_page_filename)
 ##    logging.debug(u'current_page_filename={0!r}'.format(current_page_filename))
 ##    logging.debug(u'current_page_filepath={0!r}'.format(current_page_filepath))
-
-##    # Save page for debug
 ##    common.write_file(file_path=current_page_filepath, data=page_res.content)
     return page_res
 
@@ -115,22 +104,19 @@ def insert_if_new(db_ses, SimpleThreads, thread_nums):
         else:
             # INSERT
             logging.debug('staging thread for insert: {0!r}'.format(thread_num))
-            new_thread = SimpleThreads(
-                thread_num = thread_num,
-            )
+            new_thread = SimpleThreads( thread_num = thread_num )
             new_threads.append(new_thread)# Insert thread_num
     if len(new_threads) > 0:
         logging.debug('Inserting new threads')
         db_ses.add_all(new_threads)
         db_ses.commit()
+    return
 
 
 def insert_threads_to_db(db_ses, SimpleThreads, thread_nums):
     new_threads = []
     for thread_num in thread_nums:
-        new_thread = SimpleThreads(
-            thread_num = thread_num,
-        )
+        new_thread = SimpleThreads( thread_num = thread_num )
         new_threads.append(new_thread)
     db_ses.add_all(new_threads)
     db_ses.commit()
@@ -140,7 +126,6 @@ def insert_threads_to_db(db_ses, SimpleThreads, thread_nums):
 def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
     dl_dir, date_from, date_to):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
-    logging.debug('l{l}.h{h}.txt'.format(l=date_from, h=date_to))
     # Iterate over range
     weekdelta = datetime.timedelta(days=7)# One week's difference in time towards the future
     working_date = date_from# Initialise at low end
@@ -191,12 +176,35 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
         continue
     logging.debug(u'total_pages={0!r}'.format(total_pages))
     # Save threadIDs to file as a backup
-    thread_nums_dump_path = os.path.join(dl_dir, 'threads', 'l{l}.h{h}.txt'.format(l=date_from, h=date_to))
+    thread_nums_dump_path = os.path.join(dl_dir, 'threads', filename)
+    filename = ('l{l}.h{h}.txt'.format(l=date_from, h=date_to))
     logging.debug(u'thread_nums_dump_path={0!r}'.format(thread_nums_dump_path))
     with open(thread_nums_dump_path, 'w') as df:
         for thread_num_out in all_thread_nums:
             df.append('{0}'.format(thread_num_out))
-    logging.info(u'Finished searching')
+    logging.info(u'Finished searching range: {0!r} to {1!r}'.format(date_from, date_to))
+    return
+
+
+def scan_delta(low_date, end_date, delta):
+    logging.debug(u'scan_delta() args={0!r}'.format(locals()))# Record arguments.
+    logging.info('Scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
+    working_date = low_date
+    while (working_date < end_date):
+        date_from = working_date
+        date_to = working_date + delta
+        logging.debug('Now working on range: {0!r} to {1!r}'.format(date_from, date_to))
+        scan_board_range(
+            db_ses=db_ses,
+            SimpleThreads=SimpleThreads,
+            req_ses=req_ses,
+            board_name=board_name,
+            dl_dir=dl_dir,
+            date_from=date_from,
+            date_to=date_to
+            )
+        working_date += delta
+    logging.info('Finished scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
     return
 
 
@@ -230,6 +238,7 @@ def dev():
     # Create a session to interact with the DB
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
+
     # Scan the range
     scan_board_range(
         db_ses=db_ses,
@@ -240,6 +249,7 @@ def dev():
         date_from = datetime.date(2018, 11, 1),# Year, month, day of month
         date_to = datetime.date(2018, 11, 2),# Year, month, day of month
     )
+
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
     db_ses.commit()
@@ -248,6 +258,63 @@ def dev():
     db_ses.close()# Release connection back to pool.
     engine.dispose()# Close all connections.
     logging.warning(u'exiting dev()')
+    return
+
+
+def from_config():
+    logging.info(u'Running from_config()')
+
+    # Set run parameters
+    board_name = u'tg'
+    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
+    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
+    logging.debug(u'connection_string={0!r}'.format(connection_string))
+    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
+    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
+    date_from = datetime.date(2018, 11, 1)# Year, month, day of month
+    date_to = datetime.date(2018, 11, 2)# Year, month, day of month
+
+    # Setup requests session
+    req_ses = requests.Session()
+    # Prepare board DB classes/table mappers
+    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
+    # Setup/start/connect to DB
+    logging.debug(u'Connecting to DB')
+    db_dir, db_filename = os.path.split(db_filepath)
+    if len(db_dir) != 0:# Ensure DB has a dir to be put in
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+    # Start the DB engine
+    engine = sqlalchemy.create_engine(
+        connection_string,# Points SQLAlchemy at a DB
+        echo=True# Output DB commands to log
+    )
+    # Link table/class mapping to DB engine and make sure tables exist.
+    Base.metadata.bind = engine# Link 'declarative' system to our DB
+    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
+    # Create a session to interact with the DB
+    SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
+    db_ses = SessionClass()
+
+    # Scan the range
+    scan_board_range(
+        db_ses=db_ses,
+        SimpleThreads=SimpleThreads,
+        req_ses=req_ses,
+        board_name=board_name,
+        dl_dir=dl_dir,
+        date_from = date_from,
+        date_to = date_to,
+    )
+
+    # Persist data now that thread has been grabbed
+    logging.info(u'Committing')
+    db_ses.commit()
+    # Gracefully disconnect from DB
+    logging.info(u'Ending DB session')
+    db_ses.close()# Release connection back to pool.
+    engine.dispose()# Close all connections.
+    logging.info(u'Exiting from_config()')
     return
 
 

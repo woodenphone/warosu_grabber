@@ -188,8 +188,70 @@ def thread_simple_dev():
     return
 
 
+def from_config():
+    logging.info(u'Running from_config()')
+
+    # Load config file
+
+    # Set run parameters
+    board_name = u'tg'
+    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
+    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
+    logging.debug(u'connection_string={0!r}'.format(connection_string))
+    thread_num = 40312936 # https://warosu.org/tg/thread/40312936 #Ghost post example
+    thread_num = 40312392 # https://warosu.org/tg/thread/40312392 # Tripcode example
+    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
+    # Setup requests session
+    req_ses = requests.Session()
+    # Prepare board DB classes/table mappers
+    SimplePosts = warosu_tables.table_factory_simple_posts(Base, board_name)
+
+    # Setup/start/connect to DB
+    logging.debug(u'Connecting to DB')
+    if db_filepath:
+        db_dir, db_filename = os.path.split(db_filepath)
+        if len(db_dir) != 0:# Ensure DB has a dir to be put in
+            if not os.path.exists(db_dir):
+                os.makedirs(db_dir)
+    # Start the DB engine
+    engine = sqlalchemy.create_engine(
+        connection_string,# Points SQLAlchemy at a DB
+        echo=True# Output DB commands to log
+    )
+    # Link table/class mapping to DB engine and make sure tables exist.
+    Base.metadata.bind = engine# Link 'declarative' system to our DB
+    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
+    # Create a session to interact with the DB
+    SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
+    session = SessionClass()
+
+    # Save a thread
+    simple_save_thread(
+        db_ses=session,
+        req_ses=req_ses,
+        Threads=Threads,
+        SimplePosts=SimplePosts,
+        board_name=board_name,
+        thread_num=thread_num,
+        dl_dir=dl_dir
+    )
+
+    # Persist data now that thread has been grabbed
+    logging.info(u'Committing')
+    session.commit()
+    # Shutdown DB
+    logging.info(u'Ending DB session')
+    session.close()# Release connection back to pool.
+    engine.dispose()# Close all connections.
+
+    logging.info(u'Exiting from_config()')
+    return
+
+
+
 def main():
-    thread_simple_dev()
+##    thread_simple_dev()
+    from_config()
     return
 
 

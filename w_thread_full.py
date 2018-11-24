@@ -489,13 +489,13 @@ def split_file():
     thread_num = 40312936
     thread_url = u'https://warosu.org/tg/thread/40312936'
     thread_filepath = os.path.join(u'example_threads', u'warosu.tg.40312936.html')
-    board_images_path = u''# No trailing slash
+    board_images_path = u'data/tg'# No trailing slash
 
     # Tripcode example: https://warosu.org/tg/thread/40312392
     thread_num = 40312392
     thread_url = u'https://warosu.org/tg/thread/40312392'
     thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
-    board_images_path = ''# No trailing slash
+    board_images_path = 'data/tg'# No trailing slash
 
     # Load from file
     file_data = common.read_file(thread_filepath)
@@ -517,13 +517,13 @@ def dev_thread_complex():
     thread_num = 40312936
     thread_url = u'https://warosu.org/tg/thread/40312936'
     thread_filepath = os.path.join(u'example_threads', u'warosu.tg.40312936.html')
-    board_images_path = u'data/tg/'
+    board_images_path = u'data/tg'
 
 ##    # Tripcode example: https://warosu.org/tg/thread/40312392
 ##    thread_num = 40312392
 ##    thread_url = u'https://warosu.org/tg/thread/40312392'
 ##    thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
-##    board_images_path = ''
+##    board_images_path = 'data/tg'
 
     # Load from file
     file_data = common.read_file(thread_filepath)
