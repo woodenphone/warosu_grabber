@@ -358,7 +358,7 @@ def remove_cf_email_garbage(html):
 
 
 
-def parse_post_include_file(html):
+def parse_post_include_file(html, board_shortname):
     """
     use constant POSTS_INCLUDE_FILE => <<'HERE';
     <if $file>
@@ -381,12 +381,39 @@ def parse_post_include_file(html):
     HERE
     """
     f_regex = (
-    ''
-    ''
-    ''
-    ''
-    ''
+        '<span>File: ([a-zA-Z0-9 ]+), (\d+)x(\d+), ([a-zA-Z0-9\.]+)</span>'
+        ''
+        ''
+        ''
+        ''
     )
+    logging.debug(u'f_regex={0!r}'.format(f_regex))
+
+    file_regex_1 = (
+        '<span>File: '
+        '(\w+ )'# <var make_filesize_string($media_size)>
+        ', '
+        '(\d+)'# <var $media_w>
+        'x'
+        '(\d+)'# <var $media_h>
+        ', '
+        '([a-zA-Z0-9]+)'# <var $media>
+        '([a-zA-Z0-9=]+)'# <var $media_hash>
+        '</span>'
+        '\n'
+        '\[<a href="'
+        +board_shortname+#<var $self>
+        '/image/'
+        '([a-zA-Z0-9=]+)'# <var urlsafe_b64encode(urlsafe_b64decode($media_hash))>
+        '>">View same</a>\]'
+    )
+    # Extract f
+    f_regex_2 = (
+        ''
+    )
+    logging.debug(u'file_regex_1={0!r}'.format(file_regex_1))
+
+
 
     file_values = {}
     return file_values
@@ -412,46 +439,47 @@ def parse_ghost_post(fragment, thread_num):
     <span>File: <var make_filesize_string($media_size)>, <var $media_w>x<var $media_h>, <var $media><!-- <var $media_hash> --></span>
     """
     file_regex_1 = (
-    '<span>File: '
-    '(\w+)'# <var make_filesize_string($media_size)>
-    ', '
-    '(\d+)'# <var $media_w>
-    'x'
-    '(\d+)'# <var $media_h>
-    ', '
-    '([a-zA-Z0-9]+)'# <var $media>
-    '<!-- '
-    '([a-zA-Z0-9=]+)'# <var $media_hash>
-    ' --></span>'
+        '<span>File: '
+        '(\w+ )'# <var make_filesize_string($media_size)>
+        ', '
+        '(\d+)'# <var $media_w>
+        'x'
+        '(\d+)'# <var $media_h>
+        ', '
+        '([a-zA-Z0-9]+)'# <var $media>
+        '</span>'
+        '\n'
     )
-
+    logging.debug(u'file_regex_1={0!r}'.format(file_regex_1))
     f_search_1 = re.search(file_regex_1, fragment)
     if f_search_1:
         # File present
-        filesize_string = f_search_1.group(1)
-        media_w = f_search_1.group(2)
-        media_h = f_search_1.group(3)
-        media = f_search_1.group(4)
-        media_hash = f_search_1.group(5)
+        filesize_string = f_search_1.group(1)# media_size (lowered resolution?)TODO Investigate accuracy of given values
+        media_w = f_search_1.group(2)# media_w
+        media_h = f_search_1.group(3)# media_h
+        media = f_search_1.group(4)# media_filename?
     else:
         # No file
-        filesize_string = None
-        media_w = None
-        media_h = None
-        media = None
-        media_hash = None
+        filesize_string = None# media_size (lowered resolution?)TODO Investigate accuracy of given values
+        media_w = None# media_w
+        media_h = None# media_h
+        media = None# media_filename?
 
-    file_regex_2 = (
-    ''
-    ''
-    ''
-    ''
+    file_hash_regex = (
+        '</span>'# Match end of file size display line to avoid mismatches
+        '\n'
+        '\[<a href="'
+        '[a-zA-Z0-9]+?'#<var $self> board shortname
+        '/image/'
+        '([a-zA-Z0-9=]+)'# <var urlsafe_b64encode(urlsafe_b64decode($media_hash))>
+        '>">View same</a>\]'
     )
-
-
-    # media_id:
-
-
+    f_hash_search = re.search(file_hash_regex, fragment)
+    if f_hash_search:
+        media_hash =  f_hash_search.group(0)# media_hash
+    else:
+        media_hash = None# media_hash
+    # media_id: Can we obtain this?
     # op:
     # timestamp:
     # timestamp_expired:
