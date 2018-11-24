@@ -9,23 +9,21 @@
 # Licence:     <your licence>
 #-------------------------------------------------------------------------------
 # StdLib
-import time
-import os
 import logging
 import logging.handlers
-import datetime
 import re
+import unittest
 # Remote libraries
 import bs4
 # local
-import common
+
 
 
 
 
 
 def convert_filesize_string(fs_string):
-    """
+    """Inverse of:
     sub size_string($){
         my($val)=@_;
 
@@ -47,7 +45,7 @@ def convert_filesize_string(fs_string):
     elif (mult == 'GB'):
         return int(val) * 1024*1024*1024
     elif (mult == 'large'):
-        return None
+        return None# NULL
     # Unexpected value
     logging.error('Unexpected filesize value!  fs_string={0!r}'.format(fs_string))
     raise ValueError()
@@ -111,13 +109,13 @@ def preview_preview_w_preview_h(fragment):
             preview_w = preview_search.group(3)
             preview_h = preview_search.group(4)
         else:
-            preview_w = None
-            preview_h = None
+            preview_w = None# NULL
+            preview_h = None# NULL
     else:
-        preview = None
-##        thumb_alt = None# num
-        preview_w = None
-        preview_h = None
+        preview = None# NULL
+##        thumb_alt = None# NULL
+        preview_w = None# NULL
+        preview_h = None# NULL
     return (preview, preview_w, preview_h)
 
 
@@ -159,14 +157,14 @@ def media_media_w_media_h_media_size(fragment):
         media = f_search_1.group(4)# Original filename
     else:
         # No file
-        filesize_string = None# media_size (lowered resolution?)TODO Investigate accuracy of given values
-        media_w = None# media_w
-        media_h = None# media_h
-        media = None# Original filename
+        filesize_string = None# NULL# media_size (lowered resolution?)TODO Investigate accuracy of given values
+        media_w = None# NULL# media_w
+        media_h = None# NULL# media_h
+        media = None# NULL# Original filename
     if filesize_string:
         media_size = convert_filesize_string(filesize_string)
     else:
-        media_size = None
+        media_size = None# NULL
     return (media, media_w, media_h, media_size)
 
 
@@ -187,25 +185,25 @@ def media_hash(fragment):
     if f_hash_search:
         media_hash =  f_hash_search.group(0)# media_hash
     else:
-        media_hash = None# media_hash
+        media_hash = None# NULL
     return media_hash
 
 
-def media_filename(fragment):
+def media_filename(fragment, board_images_path):
     """Find media_filename
     media_filename: server's disk filename of full image."""
     # media_filename varchar(20),
     # <elsif $media_filename><a rel="noreferrer" href="<var "$images_link/$media_filename">">
     # </if>
     media_filename_regex = (
-        '<a rel="noreferrer" href="<var "'
+        u'<a rel="noreferrer" href="<var "'
         +board_images_path+
-        '/([^"]+)">">')
+        u'/([^"]+)">">')
     media_filename_search = re.search(media_filename_regex, fragment)
     if media_filename_search:
         media_filename = media_filename_search.group(1)
     else:
-        media_filename = None
+        media_filename = None# NULL
     return media_filename
 
 
@@ -213,7 +211,12 @@ def spoiler(fragment):
     """Determine if spoiler true/false.
     spoiler: Was post spoilered on 4chan."""
     # <if $spoiler><img class="inline" src="<const MEDIA_LOCATION_HTTP>/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;</if>
-    spoiler = (u'/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;' in fragment)
+    spoiler_indicator = u'/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;'
+    logging.debug(u'spoiler() type(spoiler_indicator)={0!r}'.format(type(spoiler_indicator)))
+    logging.debug(u'spoiler() spoiler_indicator={0!r}'.format(spoiler_indicator))
+    logging.debug(u'spoiler() type(fragment)={0!r}'.format(type(fragment)))
+    logging.debug(u'spoiler() fragment={0!r}'.format(fragment))
+    spoiler = (spoiler_indicator in fragment)
     return spoiler
 
 
@@ -253,7 +256,6 @@ def capcode(fragment):
     raise ValueError()# Unexpected value
 
 
-
 def name(fragment):
     """Find name.
     name: name of poster."""
@@ -262,7 +264,6 @@ def name(fragment):
     name_search = re.search(u'<span itemprop="name">([^<]+)</span>', fragment)
     name = name_search.group(1)
     return name
-
 
 
 def trip(fragment):
@@ -275,15 +276,31 @@ def trip(fragment):
     if trip_search:
         trip = trip_search.group(1)
     else:
-        trip = None
+        trip = None# NULL
     return trip
 
 
 def comment(fragment):
     """Find comment.
     comment: Post text"""
-
+    soup = bs4.BeautifulSoup(fragment, u'html.parser')# TODO Maybe find more efficient way to grab this value than bs4?
+    comment_element = soup.find(name=u'p', attrs={u'itemprop':'text',})
+    comment = str(comment_element)
     return comment
+
+
+def title(fragment):
+    """Find title.
+    title: file title"""
+    # title varchar(100),
+    # <if $title><span class="filetitle"><var $title></span>&nbsp;</if>
+    title_search = re.search('<span class="filetitle">([^<]+)</span>&nbsp;', fragment)
+    if title_search:
+        title = title_search.group(1)
+        return title
+    else:
+        return None# NULL
+
 
 
 
