@@ -96,15 +96,64 @@ def parse_post_include_file(html, board_shortname):
     )
     logging.debug(u'file_regex_1={0!r}'.format(file_regex_1))
 
-
-
     file_values = {}
     return file_values
 
 
 
+
+
+
+def fuuka_post(fragment, thread_num, thread_url):
+    """Extract fuuka values."""
+    post_data = {}
+##    # doc_id int unsigned not null auto_increment,
+##    # id decimal(39,0) unsigned not null default '0',
+    # num int unsigned not null,
+    # subnum int unsigned not null,
+    num_search_regex = (
+    u'<input '
+    u'(?:name="delete"|type="checkbox"| )+'# These can be in either order, and are seperated by spaces
+    u'value="(\d+),(\d+)'
+    )
+    num_search = re.search(num_search_regex, fragment)
+    num_string = num_search.group(1)
+    subnum_string = num_search.group(2)
+    num = int(num_string)
+    subnum = int(subnum_string)
+    post_data['num'] = num
+    post_data['subnum'] = subnum
+
+    # parent int unsigned not null default '0',
+    post_data['thread_num'] = thread_num
+
+    # timestamp int unsigned not null,
+    # preview varchar(20),
+    # preview_w smallint unsigned not null default '0',
+    # preview_h smallint unsigned not null default '0',
+    # media text,
+    # media_w smallint unsigned not null default '0',
+    # media_h smallint unsigned not null default '0',
+    # media_size int unsigned not null default '0',
+    # media_hash varchar(25),
+    # media_filename varchar(20),
+    # spoiler bool not null default '0',
+    # deleted bool not null default '0',
+    # capcode enum('N', 'M', 'A', 'G') not null default 'N',
+    # email varchar(100),
+    # name varchar(100),
+    # trip varchar(25),
+    # title varchar(100),
+    # comment text,
+##    # delpass tinytext,
+    # sticky bool not null default '0',
+    logging.debug(u'post_data={0!r}'.format(post_data))
+    return post_data
+
+
 def parse_ghost_post(fragment, thread_num, thread_url):# TODO: Write tests
-    """Accepts a post's html fragment for a thread"""
+    """Accepts a post's html fragment for a thread.
+    Asafu/Foolfuuka values"""
     # doc_id: Cannot retrive
     # num, subnum:
     #num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', fragment)

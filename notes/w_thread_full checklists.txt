@@ -16,10 +16,10 @@ Definition of states:
 [ ] doc_id: (Unlikely to be able to get this)
 [ ] media_id: Can we obtain this?
 [ ] poster_ip: (Unlikely to be able to get this)
-[ ] num:
-[ ] subnum:
-[ ] thread_num:
-[ ] op:
+[o] num:
+[o] subnum:
+[o] thread_num:
+[o] op:
 [ ] timestamp:
 [ ] timestamp_expired:
 [ ] preview_orig:
@@ -36,9 +36,9 @@ Definition of states:
 [ ] capcode:
 [ ] email: CLOUDFLARE FUCKS THIS UP
 [.] name:
-[ ] trip:
+[.] trip:
 [ ] title:
-[ ] comment:
+[.] comment:
 [ ] delpass: Can't retrieve this
 [ ] sticky: (Is this OP-only?)
 [ ] locked: (Is this OP-only?)
@@ -49,5 +49,30 @@ Definition of states:
 
 
 
-
-
+fuuka_post()
+# Based on fuuka posts table
+[ ] doc_id int unsigned not null auto_increment,
+[ ] id decimal(39,0) unsigned not null default '0',
+[ ] num int unsigned not null,
+[ ] subnum int unsigned not null,
+[ ] parent int unsigned not null default '0',
+[ ] timestamp int unsigned not null,
+[ ] preview varchar(20),
+[ ] preview_w smallint unsigned not null default '0',
+[ ] preview_h smallint unsigned not null default '0',
+[ ] media text,
+[ ] media_w smallint unsigned not null default '0',
+[ ] media_h smallint unsigned not null default '0',
+[ ] media_size int unsigned not null default '0',
+[ ] media_hash varchar(25),
+[ ] media_filename varchar(20),
+[ ] spoiler bool not null default '0',
+[ ] deleted bool not null default '0',
+[ ] capcode enum('N', 'M', 'A', 'G') not null default 'N',
+[ ] email varchar(100),
+[ ] name varchar(100),
+[ ] trip varchar(25),
+[ ] title varchar(100),
+[ ] comment text,
+[ ] delpass tinytext,
+[ ] sticky bool not null default '0',
