@@ -8,7 +8,7 @@ Definition of states:
 [?] Unknown
 [!] Urgent
 [z] Low-priority/can wait
-
+[N] Cannot be done
 
 # parse_ghost_post()
 # Value extraction status
@@ -51,28 +51,28 @@ Definition of states:
 
 fuuka_post()
 # Based on fuuka posts table
-[ ] doc_id int unsigned not null auto_increment,
-[ ] id decimal(39,0) unsigned not null default '0',
-[ ] num int unsigned not null,
-[ ] subnum int unsigned not null,
-[ ] parent int unsigned not null default '0',
-[ ] timestamp int unsigned not null,
-[ ] preview varchar(20),
-[ ] preview_w smallint unsigned not null default '0',
-[ ] preview_h smallint unsigned not null default '0',
-[ ] media text,
-[ ] media_w smallint unsigned not null default '0',
-[ ] media_h smallint unsigned not null default '0',
+[N] doc_id int unsigned not null auto_increment,
+[N] id decimal(39,0) unsigned not null default '0',
+[o] num int unsigned not null,
+[o] subnum int unsigned not null,
+[o] parent int unsigned not null default '0',
+[o] timestamp int unsigned not null,
+[o] preview varchar(20),
+[o] preview_w smallint unsigned not null default '0',
+[o] preview_h smallint unsigned not null default '0',
+[o] media text,
+[o] media_w smallint unsigned not null default '0',
+[o] media_h smallint unsigned not null default '0',
 [ ] media_size int unsigned not null default '0',
-[ ] media_hash varchar(25),
+[o] media_hash varchar(25),
 [ ] media_filename varchar(20),
 [ ] spoiler bool not null default '0',
 [ ] deleted bool not null default '0',
 [ ] capcode enum('N', 'M', 'A', 'G') not null default 'N',
 [ ] email varchar(100),
-[ ] name varchar(100),
-[ ] trip varchar(25),
+[o] name varchar(100),
+[o] trip varchar(25),
 [ ] title varchar(100),
 [ ] comment text,
-[ ] delpass tinytext,
+[N] delpass tinytext,
 [ ] sticky bool not null default '0',

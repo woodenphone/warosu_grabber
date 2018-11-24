@@ -101,10 +101,36 @@ def parse_post_include_file(html, board_shortname):
 
 
 
+def convert_filesize_string(fs_string):
+    """
+    sub size_string($){
+        my($val)=@_;
+
+        return sprintf "%d B",$val if $val<1024;
+        return sprintf "%d KB",$val if ($val/=1024)<1024;
+        return sprintf "%.2f MB",$val if ($val/=1024)<1024;
+        return sprintf "%.2f GB",$val if ($val/=1024)<1024;
+
+        "very large"
+    }
+    """
+    val, mult = fs_string.split(' ')
+    if (mult == 'B'):
+        return int(val)
+    elif (mult == 'KB'):
+        return int(val) * 1024
+    elif (mult == 'MB'):
+        return int(val) * 1024*1024
+    elif (mult == 'GB'):
+        return int(val) * 1024*1024*1024
+    elif (mult == 'large'):
+        return None
+    # Unexpected value
+    logging.error('Unexpected filesize value!  fs_string={0!r}'.format(fs_string))
+    raise ValueError()
 
 
-
-def fuuka_post(fragment, thread_num, thread_url):
+def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     """Extract fuuka values."""
     post_data = {}
 ##    # doc_id int unsigned not null auto_increment,
@@ -114,8 +140,7 @@ def fuuka_post(fragment, thread_num, thread_url):
     num_search_regex = (
     u'<input '
     u'(?:name="delete"|type="checkbox"| )+'# These can be in either order, and are seperated by spaces
-    u'value="(\d+),(\d+)'
-    )
+    u'value="(\d+),(\d+)')
     num_search = re.search(num_search_regex, fragment)
     num_string = num_search.group(1)
     subnum_string = num_search.group(2)
@@ -124,29 +149,195 @@ def fuuka_post(fragment, thread_num, thread_url):
     post_data['num'] = num
     post_data['subnum'] = subnum
 
+
     # parent int unsigned not null default '0',
-    post_data['thread_num'] = thread_num
+    post_data['parent'] = thread_num# TODO Verify this is correct
+
 
     # timestamp int unsigned not null,
+    # Find timestamp string
+    # <span class="posttime" title="<var deyotsutime($date) * 1000>"><var scalar gmtime($date)></span></label>
+    # '<span class="posttime" title="1474172041000">Sun Sep 18 12:14:01 2016</span></label>'
+    timestamp_search = re.search(u'<span class="posttime" title="(\d+)">', fragment)
+    timestamp_string = timestamp_search.group(1)
+    # Convert timestamp string to correct unixtime
+    timestamp = int(timestamp_string)# TODO Ensure we're not off by a factor of a thousand or so (check actual DB values)
+    logging.debug(u'timestamp={0!r}'.format(timestamp))
+    post_data['timestamp'] = timestamp
+
+
     # preview varchar(20),
     # preview_w smallint unsigned not null default '0',
     # preview_h smallint unsigned not null default '0',
+    # Image preview values
+    # <if $file><img class="thumb" src="<var $file>" alt="<var $num>" <if $preview_w>width="<var $preview_w>" height="<var $preview_h>"</if> /></if>
+    # ...
+    # <if not $file><img src="<const MEDIA_LOCATION_HTTP>/error.png" alt="ERROR" class="nothumb" title="No thumbnail" /></if>
+    preview_search = re.search('<img class="thumb" src="([^"]+)" alt="([^"]+)" (?:width="([^"]+)" height="([^"]+)")?', fragment)
+    if preview_search:
+        logging.debug('Found thumbnail')
+        preview = preview_search.group(1)
+        #thumb_alt = preview_search.group(2)# num
+        if preview_search.group(3):
+            logging.debug('Found thumbnail dimensions')
+            preview_w = preview_search.group(3)
+            preview_h = preview_search.group(4)
+        else:
+            preview_w = None
+            preview_h = None
+    else:
+        preview = None
+##        thumb_alt = None# num
+        preview_w = None
+        preview_h = None
+    post_data['preview'] = preview# Thumbnail filename on disk
+    post_data['preview_w'] = preview_w
+    post_data['preview_h'] = preview_h
+
+
     # media text,
     # media_w smallint unsigned not null default '0',
     # media_h smallint unsigned not null default '0',
     # media_size int unsigned not null default '0',
+    #
+    """
+    from templates.pl POSTS_INCLUDE_FILE
+    to match:
+    <span>File: <var make_filesize_string($media_size)>, <var $media_w>x<var $media_h>, <var $media><!-- <var $media_hash> --></span>
+    """
+    file_regex_1 = (
+        u'<span>File: '
+        u'(\w+ )'# <var make_filesize_string($media_size)>
+        u', '
+        u'(\d+)'# <var $media_w>
+        u'x'
+        u'(\d+)'# <var $media_h>
+        u', '
+        u'([a-zA-Z0-9]+)'# <var $media>
+        u'</span>'
+        u'\n')
+##    logging.debug(u'file_regex_1={0!r}'.format(file_regex_1))
+    f_search_1 = re.search(file_regex_1, fragment)
+    if f_search_1:
+        # File present
+        filesize_string = f_search_1.group(1)# media_size (lowered resolution?)TODO Investigate accuracy of given values
+        media_w = f_search_1.group(2)# media_w
+        media_h = f_search_1.group(3)# media_h
+        media = f_search_1.group(4)# Original filename
+    else:
+        # No file
+        filesize_string = None# media_size (lowered resolution?)TODO Investigate accuracy of given values
+        media_w = None# media_w
+        media_h = None# media_h
+        media = None# Original filename
+    if filesize_string:
+        media_size = convert_filesize_string(filesize_string)
+    else:
+        media_size = None
+    post_data['media'] = media# Original filename
+    post_data['media_w'] = media_w# media_w
+    post_data['media_h'] = media_h# media_h
+    post_data['media_size'] = media_size# media_size (lowered resolution?)TODO Investigate accuracy of given values
+
+
     # media_hash varchar(25),
+    file_hash_regex = (
+        u'</span>'# Match end of file size display line to avoid mismatches
+        u'\n'
+        u'\[<a href="'
+        u'[a-zA-Z0-9]+?'#<var $self> board shortname
+        u'/image/'
+        u'([a-zA-Z0-9=]+)'# <var urlsafe_b64encode(urlsafe_b64decode($media_hash))>
+        u'>">View same</a>\]'
+    )
+    f_hash_search = re.search(file_hash_regex, fragment)
+    if f_hash_search:
+        media_hash =  f_hash_search.group(0)# media_hash
+    else:
+        media_hash = None# media_hash
+    post_data['media_hash'] = media_hash# Image MD5 hash encoded in base64
+    logging.debug(u'media_hash={0!r}'.format(media_hash))
+
+
     # media_filename varchar(20),
+    # <elsif $media_filename><a rel="noreferrer" href="<var "$images_link/$media_filename">">
+    # </if>
+    media_filename_regex = (
+        '<a rel="noreferrer" href="<var "'
+        +board_images_path+
+        '/([^"]+)">">')
+    media_filename_search = re.search(media_filename_regex, fragment)
+    if media_filename_search:
+        media_filename = media_filename_search.group(1)
+    else:
+        media_filename = None
+    post_data['media_filename'] = media_filename# Filename on disk
+    logging.debug(u'media_filename={0!r}'.format(media_filename))
+
+
     # spoiler bool not null default '0',
+    # <if $spoiler><img class="inline" src="<const MEDIA_LOCATION_HTTP>/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;</if>
+    spoiler = (u'/spoilers.png" alt="[SPOILER]" title="Picture in this post is marked as spoiler" />&nbsp;' in fragment)
+    post_data['spoiler'] = spoiler# Post was spoilered on 4chan
+    logging.debug(u'spoiler={0!r}'.format(spoiler))
+
+
     # deleted bool not null default '0',
+    # <if $deleted><img class="inline" src="<const MEDIA_LOCATION_HTTP>/deleted.png" alt="[DELETED]" title="This post was deleted before its lifetime has expired" />&nbsp;</if>
+    deleted = (u'/deleted.png" alt="[DELETED]" title="This post was deleted before its lifetime has expired" />' in fragment)
+    post_data['deleted'] = deleted# Post was deleted on 4chan
+    logging.debug(u'deleted={0!r}'.format(deleted))
+
+
     # capcode enum('N', 'M', 'A', 'G') not null default 'N',
+
+
     # email varchar(100),
+
+
     # name varchar(100),
+    # <span itemprop="name">jubels</span>
+    name_search = re.search(u'<span itemprop="name">([^<]+)</span>', fragment)
+    name = name_search.group(1)
+    post_data['name'] = name
+    logging.debug(u'name={0!r}'.format(name))
+
+
     # trip varchar(25),
+    # <span class="postertrip<if $capcode eq 'M'> mod</if><if $capcode eq 'A'> admin</if><if $capcode eq 'D'> dev</if>">&nbsp;<var $trip></span><if $email></a></if></if>
+    # TODO: Handle capcode presence
+    trip_search = re.search(u'<span class="postertrip">&nbsp;([a-zA-Z0-9!/]+)</span>', fragment)
+    if trip_search:
+        trip = trip_search.group(1)
+    else:
+        trip = None
+    post_data['trip'] = trip
+    logging.debug(u'trip={0!r}'.format(trip))
+
+
     # title varchar(100),
+    # <if $title><span class="filetitle"><var $title></span>&nbsp;</if>
+    title_search = re.search('<span class="filetitle">([^<]+)</span>&nbsp;', fragment)
+    title = title_search.group(1)
+    post_data['title'] = title
+    logging.debug(u'title={0!r}'.format(title))
+
+
     # comment text,
+    post_data['comment'] = comment
+    logging.debug(u'comment={0!r}'.format(comment))
+
+
 ##    # delpass tinytext,
+
+
     # sticky bool not null default '0',
+    # <if $sticky><img class="inline" src="<const MEDIA_LOCATION_HTTP>/sticky.png" alt="[STICKY]" title="This post was stickied on 4chan." />&nbsp;</if>
+    sticky = (u'sticky.png" alt="[STICKY]" title="This post was stickied on 4chan." />&nbsp;' in fragment)
+    post_data['sticky'] = sticky
+    logging.debug(u'sticky={0!r}'.format(sticky))
+
+
     logging.debug(u'post_data={0!r}'.format(post_data))
     return post_data
 
@@ -403,7 +594,7 @@ def detect_ghost_post(fragment):# TODO: Write tests
         return False
 
 
-def parse_thread(html, thread_num, thread_url):
+def parse_thread(html, thread_num, thread_url, board_images_path):
     """Split into post HTML fagments
     Make sure OP is included"""
     ghost_posts = []
@@ -415,7 +606,8 @@ def parse_thread(html, thread_num, thread_url):
         if ( detect_ghost_post(fragment) ):
             # This is a ghost post
             # Extract data from post
-            post = parse_ghost_post(fragment, thread_num, thread_url)
+            post = fuuka_post(fragment, thread_num, thread_url, board_images_path)# Fuuka-style values
+##            post = parse_ghost_post(fragment, thread_num, thread_url)# Asagi-style values
             logging.debug(u'post={0!r}'.format(post))
             ghost_posts.append(post)
     thread = {
@@ -436,16 +628,18 @@ def dev_thread_complex():
     thread_num = 40312936
     thread_url = u'https://warosu.org/tg/thread/40312936'
     thread_filepath = os.path.join('example_threads', 'warosu.tg.40312936.html')
+    board_images_path = ''
 
 ##    # Tripcode example: https://warosu.org/tg/thread/40312392
 ##    thread_num = 40312392
 ##    thread_url = u'https://warosu.org/tg/thread/40312392'
 ##    thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
+    board_images_path = ''
 
     # Load from file
     html = common.read_file(thread_filepath)
     # Parse thread
-    thread = parse_thread(html, thread_num, thread_url)
+    thread = parse_thread(html, thread_num, thread_url, board_images_path)
     logging.debug(u'thread={0!r}'.format(thread))
     logging.warning(u'exiting dev_thread_complex()')
     return
