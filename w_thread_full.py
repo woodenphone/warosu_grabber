@@ -100,13 +100,8 @@ def parse_post_include_file(html, board_shortname):
     return file_values
 
 
-
-
-
-
 def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     """Extract fuuka values."""
-    logging.debug(u'fuuka_post() initial type(fragment)={0!r}'.format(type(fragment)))
     post_data = {}
 ##    # doc_id int unsigned not null auto_increment,
 ##    # id decimal(39,0) unsigned not null default '0',
@@ -114,15 +109,14 @@ def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     num, subnum = w_post_extractors.num_subnum(fragment)
     post_data['num'] = num
     post_data['subnum'] = subnum
-    logging.debug(u'fuuka_post() after numsubnum type(fragment)={0!r}'.format(type(fragment)))
 
     # parent int unsigned not null default '0',
     post_data['parent'] = thread_num# TODO Verify this is correct
 
     # timestamp int unsigned not null,
     timestamp = w_post_extractors.timestamp(fragment)
-    logging.debug(u'timestamp={0!r}'.format(timestamp))
     post_data['timestamp'] = timestamp
+##    logging.debug(u'timestamp={0!r}'.format(timestamp))
 
     # preview varchar(20),
     # preview_w smallint unsigned not null default '0',
@@ -131,7 +125,6 @@ def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     post_data['preview'] = preview# Thumbnail filename on disk
     post_data['preview_w'] = preview_w
     post_data['preview_h'] = preview_h
-    logging.debug(u'fuuka_post() after preview type(fragment)={0!r}'.format(type(fragment)))
 
     # media text,
     # media_w smallint unsigned not null default '0',
@@ -146,29 +139,27 @@ def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     # media_hash varchar(25),
     media_hash = w_post_extractors.media_hash(fragment)
     post_data['media_hash'] = media_hash# Image MD5 hash encoded in base64
-    logging.debug(u'media_hash={0!r}'.format(media_hash))
+##    logging.debug(u'media_hash={0!r}'.format(media_hash))
 
     # media_filename varchar(20),
     media_filename = w_post_extractors.media_filename(fragment, board_images_path)
     post_data['media_filename'] = media_filename# Filename on disk
-    logging.debug(u'media_filename={0!r}'.format(media_filename))
+##    logging.debug(u'media_filename={0!r}'.format(media_filename))
 
-    logging.debug(u'fuuka_post() before spoiler type(fragment)={0!r}'.format(type(fragment)))
     # spoiler bool not null default '0',
     spoiler = w_post_extractors.spoiler(fragment)
     post_data['spoiler'] = spoiler# Post was spoilered on 4chan
-    logging.debug(u'spoiler={0!r}'.format(spoiler))
-    logging.debug(u'fuuka_post() after spoiler type(fragment)={0!r}'.format(type(fragment)))
+##    logging.debug(u'spoiler={0!r}'.format(spoiler))
 
     # deleted bool not null default '0',
     deleted = w_post_extractors.deleted(fragment)
     post_data['deleted'] = deleted# Post was deleted on 4chan
-    logging.debug(u'deleted={0!r}'.format(deleted))
+##    logging.debug(u'deleted={0!r}'.format(deleted))
 
     # capcode enum('N', 'M', 'A', 'G') not null default 'N',
     capcode = w_post_extractors.capcode(fragment)
     post_data['capcode'] = capcode
-    logging.debug(u'capcode={0!r}'.format(capcode))
+##    logging.debug(u'capcode={0!r}'.format(capcode))
 
     # email varchar(100),
 ##    email = w_post_Extractors.email(fragment)
@@ -176,31 +167,30 @@ def fuuka_post(fragment, thread_num, thread_url, board_images_path):
     # name varchar(100),
     name = w_post_extractors.name(fragment)
     post_data['name'] = name
-    logging.debug(u'name={0!r}'.format(name))
+##    logging.debug(u'name={0!r}'.format(name))
 
     # trip varchar(25),
     trip = w_post_extractors.trip(fragment)
     post_data['trip'] = trip
-    logging.debug(u'trip={0!r}'.format(trip))
+##    logging.debug(u'trip={0!r}'.format(trip))
 
     # title varchar(100),
     title = w_post_extractors.title(fragment)
     post_data['title'] = title
-    logging.debug(u'title={0!r}'.format(title))
+##    logging.debug(u'title={0!r}'.format(title))
 
     # comment text,
     comment = w_post_extractors.comment(fragment)
     post_data['comment'] = comment
-    logging.debug(u'comment={0!r}'.format(comment))
+##    logging.debug(u'comment={0!r}'.format(comment))
 
 ##    # delpass tinytext,
 
     # sticky bool not null default '0',
     sticky = w_post_extractors.sticky(fragment)
     post_data['sticky'] = sticky
-    logging.debug(u'sticky={0!r}'.format(sticky))
+##    logging.debug(u'sticky={0!r}'.format(sticky))
 
-    logging.debug(u'fuuka_post() final type(fragment)={0!r}'.format(type(fragment)))
     logging.debug(u'post_data={0!r}'.format(post_data))
     return post_data
 
@@ -438,18 +428,12 @@ def split_thread_into_posts(html):# TODO: Write tests
     1st line of next post: <table itemscope="" itemtype="http://schema.org/Comment"><tbody><tr>
     2nd line of next post: <td class="doubledash">&gt;&gt;</td>
     3rd line of next post: <td class="reply" id="p40313137">"""
-    logging.debug(u'split_thread_into_posts() type(html)={0!r}'.format(type(html)))
     # Select only the OP
     op_fragment_search = re.search('(<div id="p\d+" itemscope itemtype="http://schema.org/DiscussionForumPosting">(?:.|\n|\t)+?)<table itemscope itemtype="http://schema.org/Comment"><tr>', html)
     op_fragment = op_fragment_search.group(1)
     # (?:.|\n|\t) is to match any character, because some regex engines do not do DOTALL functionality
     reply_fragments = re.findall('(<table itemscope itemtype="http://schema.org/Comment">(?:.|\n|\t)+?</table>)', html)
-    logging.debug(u'split_thread_into_posts() type(op_fragment)={0!r}'.format(type(op_fragment)))
-    logging.debug(u'split_thread_into_posts() type(reply_fragments[0])={0!r}'.format(type(reply_fragments[0])))
     post_fragments = [op_fragment] + reply_fragments
-##    logging.debug(u'post_fragments={0!r}'.format(post_fragments))
-    logging.debug(u'len(post_fragments)={0!r}'.format(len(post_fragments)))
-    logging.debug(u'split_thread_into_posts() type(post_fragments)={0!r}'.format(type(post_fragments)))
     return post_fragments
 
 
@@ -459,9 +443,6 @@ def detect_ghost_post(fragment):# TODO: Write tests
         return True
     else:
         return False
-
-
-
 
 
 def split_thread_to_file(html, thread_num, filepath_template):
@@ -480,7 +461,6 @@ def split_thread_to_file(html, thread_num, filepath_template):
 def parse_thread(html, thread_num, thread_url, board_images_path):
     """Split into post HTML fagments
     Make sure OP is included"""
-    logging.debug(u'parse_thread() type(html)={0!r}'.format(type(html)))
     ghost_posts = []
     # Split thread into post HTML fragments
     fragments = split_thread_into_posts(html)
@@ -490,7 +470,6 @@ def parse_thread(html, thread_num, thread_url, board_images_path):
         if ( detect_ghost_post(fragment) ):
             # This is a ghost post
             # Extract data from post
-            logging.debug(u'parse_thread() type(fragment)={0!r}'.format(type(fragment)))
             post = fuuka_post(fragment, thread_num, thread_url, board_images_path)# Fuuka-style values
 ##            post = parse_ghost_post(fragment, thread_num, thread_url)# Asagi-style values
             logging.debug(u'post={0!r}'.format(post))
@@ -510,13 +489,13 @@ def split_file():
     thread_num = 40312936
     thread_url = u'https://warosu.org/tg/thread/40312936'
     thread_filepath = os.path.join(u'example_threads', u'warosu.tg.40312936.html')
-    board_images_path = u''
+    board_images_path = u''# No trailing slash
 
     # Tripcode example: https://warosu.org/tg/thread/40312392
     thread_num = 40312392
     thread_url = u'https://warosu.org/tg/thread/40312392'
     thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
-    board_images_path = ''
+    board_images_path = ''# No trailing slash
 
     # Load from file
     file_data = common.read_file(thread_filepath)
@@ -538,13 +517,13 @@ def dev_thread_complex():
     thread_num = 40312936
     thread_url = u'https://warosu.org/tg/thread/40312936'
     thread_filepath = os.path.join(u'example_threads', u'warosu.tg.40312936.html')
-    board_images_path = u''
+    board_images_path = u'data/tg/'
 
-    # Tripcode example: https://warosu.org/tg/thread/40312392
-    thread_num = 40312392
-    thread_url = u'https://warosu.org/tg/thread/40312392'
-    thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
-    board_images_path = ''
+##    # Tripcode example: https://warosu.org/tg/thread/40312392
+##    thread_num = 40312392
+##    thread_url = u'https://warosu.org/tg/thread/40312392'
+##    thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
+##    board_images_path = ''
 
     # Load from file
     file_data = common.read_file(thread_filepath)
