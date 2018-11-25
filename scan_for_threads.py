@@ -42,10 +42,11 @@ class YAMLConfigScanForThreads():
         self.board_name = 'board_shortname'
         self.db_filepath = 'db/filepath/if.sqlite'
         self.connection_string = 'engine://sqlalchemy_parameters'
-        self.thread_num = 0
         self.dl_dir = 'download/filepath/'
-        self.date_from = datetime.date(1970,1,1)
-        self.date_to = datetime.date(1970,1,1)
+        self.date_from = datetime.date(1970,1,1)# 1st Jan 1970, classic dummy date.
+        self.date_to = datetime.date(1970,1,1)# 1st Jan 1970, classic dummy date.
+        self.step_days = 1
+        self.echo_sql = False
         if config_path:
             config_dir = os.path.dirname(config_path)
             if len(config_dir) > 0:# Only try to make a dir if ther is a dir to make.
@@ -83,24 +84,25 @@ def search_for_threads(req_ses, board_name, dl_dir,
     """Load one search page, save it for debugging, and return the response object."""
     logging.debug(u'search_for_threads() args={0!r}'.format(locals()))# Record arguments.
     # Generate url for search page
-    current_page_template = (
+    current_page_template = (# Search for all threads
         u'https://warosu.org/g/?task=search2'
-        u'&ghost=yes'
+        u'&ghost=yes'# Include ghostposts in query
         u'&search_text='
         u'&search_subject='
         u'&search_username='
         u'&search_tripcode='
         u'&search_email='
         u'&search_filename='
-        u'&search_datefrom={date_from}'
-        u'&search_dateto={date_to}'
+        u'&search_datefrom={date_from}'# Specify start date
+        u'&search_dateto={date_to}'# Specify end date
         u'&search_op=all'
         u'&search_del=dontcare'
         u'&search_int=dontcare'
         u'&search_ord=new'
         u'&search_capcode=all'
         u'&search_res=post'
-        u'&offset={offset}'
+        u'&offset={offset}'# Specify results offset
+        '&search_res=op'# Only show thread OP in results
     )
     current_page_url = current_page_template.format(
         date_from=date_from, date_to=date_to, offset=offset)
@@ -118,6 +120,14 @@ def search_for_threads(req_ses, board_name, dl_dir,
 ##    logging.debug(u'current_page_filepath={0!r}'.format(current_page_filepath))
 ##    common.write_file(file_path=current_page_filepath, data=page_res.content)
     return page_res
+
+
+def str_to_date(date_string):
+    """'YYYY-MM-DD' -> datetime.date(YYYY, MM, DD)
+    '2018-11-25' -> datetime.date(year=2018,month=11,day=25)"""
+    logging.debug(u'date_string={0!r}'.format(date_string))
+    date = datetime.datetime.strptime(date_string, u'%Y-%m-%d')
+    return date
 
 
 def date_to_warosu(date):
@@ -142,11 +152,11 @@ def insert_if_new(db_ses, SimpleThreads, thread_nums):
         check_result = check_q.first()
         if check_result:
             # UPDATE
-            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
+##            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
             continue
         else:
             # INSERT
-            logging.debug('staging thread for insert: {0!r}'.format(thread_num))
+            logging.debug('Staging thread for insert: {0!r}'.format(thread_num))
             new_thread = SimpleThreads( thread_num = thread_num )
             new_threads.append(new_thread)# Insert thread_num
     if len(new_threads) > 0:
@@ -167,17 +177,19 @@ def insert_threads_to_db(db_ses, SimpleThreads, thread_nums):
 
 
 def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
-    dl_dir, date_from, date_to):
+    dl_dir, date_from, date_to, step_days=1):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
     # Iterate over range
-    weekdelta = datetime.timedelta(days=7)# One week's difference in time towards the future
+    delta = datetime.timedelta(days=step_days)
     working_date = date_from# Initialise at low end
+    prev_page_threads = [None]
     all_thread_nums = []
     total_pages = 0
     while working_date < date_to:
         # Generate our current date range
         logging.debug(u'working_date={0!r}'.format(working_date))
-        fut_date = working_date + weekdelta
+##        fut_date = working_date + weekdelta
+        fut_date = working_date + delta
         logging.debug(u'fut_date={0!r}'.format(fut_date))
         # Iterate over offsets in the current date range
         for page_counter in xrange(1, 1000):
@@ -212,10 +224,14 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
             if len(thread_nums) == 0:
                 logging.info('No threads found on this page, moving on to next date range')
                 break
+            elif (thread_nums == prev_page_threads):
+                logging.info('Threads on this page were the same as the previous page, moving on to next date range')
+                break
+            prev_page_threads = thread_nums
             continue
         # Go forward a week
         logging.debug('Incrementing working date')
-        working_date += weekdelta
+        working_date = fut_date
         continue
     logging.debug(u'total_pages={0!r}'.format(total_pages))
     # Save threadIDs to file as a backup
@@ -229,95 +245,95 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
     return
 
 
-def scan_delta(low_date, end_date, delta):
-    logging.debug(u'scan_delta() args={0!r}'.format(locals()))# Record arguments.
-    logging.info('Scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
-    working_date = low_date
-    while (working_date < end_date):
-        date_from = working_date
-        date_to = working_date + delta
-        logging.debug('Now working on range: {0!r} to {1!r}'.format(date_from, date_to))
-        scan_board_range(
-            db_ses=db_ses,
-            SimpleThreads=SimpleThreads,
-            req_ses=req_ses,
-            board_name=board_name,
-            dl_dir=dl_dir,
-            date_from=date_from,
-            date_to=date_to
-            )
-        working_date += delta
-    logging.info('Finished scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
-    return
+##def scan_delta(low_date, end_date, delta):
+##    logging.debug(u'scan_delta() args={0!r}'.format(locals()))# Record arguments.
+##    logging.info('Scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
+##    working_date = low_date
+##    while (working_date < end_date):
+##        date_from = working_date
+##        date_to = working_date + delta
+##        logging.debug('Now working on range: {0!r} to {1!r}'.format(date_from, date_to))
+##        scan_board_range(
+##            db_ses=db_ses,
+##            SimpleThreads=SimpleThreads,
+##            req_ses=req_ses,
+##            board_name=board_name,
+##            dl_dir=dl_dir,
+##            date_from=date_from,
+##            date_to=date_to
+##            )
+##        working_date += delta
+##    logging.info('Finished scanning range: {0!r} to {1!r} in batches of {2!r}'.format(date_from, date_to, delta))
+##    return
+##
+##
+##def detect_fake_date(date_obj):
+##    """Detect a predefined dummy value date"""
+##    if (type(date_obj) not in [datetime.datetime, datetime.date, datetime.time]):
+##        logging.error('Improper date object type!')
+##        return True
+##    predefined_fake_date = datetime.date(1970,1,1)# 1st Jan 1970, classic dummy date.
+##    slop_delta = datetime.timedelta(days=7)# Some slop to tolerate whatever decrease in resolution if conversions occur.
+##    l_date = predefined_fake_date - datetime.timedelta(days=7)
+##    h_date = predefined_fake_date + datetime.timedelta(days=7)
+##    if ( (l_date) <= date_obj <= (h_date) ):
+##        logging.info('Predefined fake date detected!')
+##        return True
+##    else:
+##        return False
 
 
-def detect_fake_date(date_obj):
-    """Detect a predefined dummy value date"""
-    if (type(date_obj) not in [datetime.datetime, datetime.date, datetime.time]):
-        logging.error('Improper date object type!')
-        return True
-    predefined_fake_date = datetime.date(1970,1,1)# 1st Jan 1970, classic dummy date.
-    slop_delta = datetime.timedelta(days=7)# Some slop to tolerate whatever decrease in resolution if conversions occur.
-    l_date = predefined_fake_date - datetime.timedelta(days=7)
-    h_date = predefined_fake_date + datetime.timedelta(days=7)
-    if ( (l_date) <= date_obj <= (h_date) ):
-        logging.info('Predefined fake date detected!')
-        return True
-    else:
-        return False
-
-
-def dev():
-    logging.warning(u'running dev()')
-    # Set run parameters
-    board_name = u'tg'
-    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
-    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
-    logging.debug(u'connection_string={0!r}'.format(connection_string))
-    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
-    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
-    # Setup requests session
-    req_ses = requests.Session()
-    # Prepare board DB classes/table mappers
-    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
-    # Setup/start/connect to DB
-    logging.debug(u'Connecting to DB')
-    db_dir, db_filename = os.path.split(db_filepath)
-    if len(db_dir) != 0:# Ensure DB has a dir to be put in
-        if not os.path.exists(db_dir):
-            os.makedirs(db_dir)
-    # Start the DB engine
-    engine = sqlalchemy.create_engine(
-        connection_string,# Points SQLAlchemy at a DB
-        echo=True# Output DB commands to log
-    )
-    # Link table/class mapping to DB engine and make sure tables exist.
-    Base.metadata.bind = engine# Link 'declarative' system to our DB
-    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
-    # Create a session to interact with the DB
-    SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
-    db_ses = SessionClass()
-
-    # Scan the range
-    scan_board_range(
-        db_ses=db_ses,
-        SimpleThreads=SimpleThreads,
-        req_ses=req_ses,
-        board_name=board_name,
-        dl_dir=dl_dir,
-        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
-        date_to = datetime.date(2018, 11, 2),# Year, month, day of month
-    )
-
-    # Persist data now that thread has been grabbed
-    logging.info(u'Committing')
-    db_ses.commit()
-    # Gracefully disconnect from DB
-    logging.info(u'Ending DB session')
-    db_ses.close()# Release connection back to pool.
-    engine.dispose()# Close all connections.
-    logging.warning(u'exiting dev()')
-    return
+##def dev():
+##    logging.warning(u'running dev()')
+##    # Set run parameters
+##    board_name = u'tg'
+##    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
+##    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
+##    logging.debug(u'connection_string={0!r}'.format(connection_string))
+##    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
+##    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
+##    # Setup requests session
+##    req_ses = requests.Session()
+##    # Prepare board DB classes/table mappers
+##    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
+##    # Setup/start/connect to DB
+##    logging.debug(u'Connecting to DB')
+##    db_dir, db_filename = os.path.split(db_filepath)
+##    if len(db_dir) != 0:# Ensure DB has a dir to be put in
+##        if not os.path.exists(db_dir):
+##            os.makedirs(db_dir)
+##    # Start the DB engine
+##    engine = sqlalchemy.create_engine(
+##        connection_string,# Points SQLAlchemy at a DB
+##        echo=True# Output DB commands to log
+##    )
+##    # Link table/class mapping to DB engine and make sure tables exist.
+##    Base.metadata.bind = engine# Link 'declarative' system to our DB
+##    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
+##    # Create a session to interact with the DB
+##    SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
+##    db_ses = SessionClass()
+##
+##    # Scan the range
+##    scan_board_range(
+##        db_ses=db_ses,
+##        SimpleThreads=SimpleThreads,
+##        req_ses=req_ses,
+##        board_name=board_name,
+##        dl_dir=dl_dir,
+##        date_from = datetime.date(2018, 11, 1),# Year, month, day of month
+##        date_to = datetime.date(2018, 11, 2),# Year, month, day of month
+##    )
+##
+##    # Persist data now that thread has been grabbed
+##    logging.info(u'Committing')
+##    db_ses.commit()
+##    # Gracefully disconnect from DB
+##    logging.info(u'Ending DB session')
+##    db_ses.close()# Release connection back to pool.
+##    engine.dispose()# Close all connections.
+##    logging.warning(u'exiting dev()')
+##    return
 
 
 def from_config():
@@ -326,23 +342,17 @@ def from_config():
     config_path = os.path.join(u'config', 'scan_for_threads.yaml')
     config = YAMLConfigScanForThreads(config_path)
     # Set values from config file
-    board_name = config.board_name
-    db_filepath = config.db_filepath
-    connection_string = config.connection_string
-    thread_num = config.thread_num
-    dl_dir = config.dl_dir
+    board_name = unicode(config.board_name)
+    db_filepath = unicode(config.db_filepath)
+    connection_string = unicode(config.connection_string)
+    dl_dir = unicode(config.dl_dir)
     date_from = config.date_from
     date_to = config.date_to
+    step_days = int(config.step_days)
+    echo_sql = config.echo_sql
 
-    # Validate parameters
-    if detect_fake_date(date_obj=date_from)
-        logging.error('date_from not properly set!')
-        logging.debug('date_from = {0!r}'.format(date_from))
-        return
-    if detect_fake_date(date_obj=date_to)
-        logging.error('date_to not properly set!')
-        logging.debug('date_to = {0!r}'.format(date_to))
-        return
+    assert(date_from > datetime.date(2000,1,1))
+    assert(date_to > datetime.date(2000,1,1))
 
     # Setup requests session
     req_ses = requests.Session()
@@ -357,7 +367,7 @@ def from_config():
     # Start the DB engine
     engine = sqlalchemy.create_engine(
         connection_string,# Points SQLAlchemy at a DB
-        echo=True# Output DB commands to log
+        echo=echo_sql# Output DB commands to log
     )
     # Link table/class mapping to DB engine and make sure tables exist.
     Base.metadata.bind = engine# Link 'declarative' system to our DB
@@ -375,6 +385,7 @@ def from_config():
         dl_dir=dl_dir,
         date_from = date_from,
         date_to = date_to,
+        step_days=step_days
     )
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
@@ -388,7 +399,8 @@ def from_config():
 
 
 def main():
-    dev()
+##    dev()
+    from_config()
     return
 
 

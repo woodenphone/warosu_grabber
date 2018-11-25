@@ -44,7 +44,7 @@ class YAMLConfigThreadSimple():
         self.connection_string = u'engine://sqlalchemy_parameters'
         self.thread_num = 0
         self.dl_dir = u'download/filepath/'
-        self.echo_sql = True
+        self.echo_sql = False
         if config_path:
             config_dir = os.path.dirname(config_path)
             if len(config_dir) > 0:# Only try to make a dir if ther is a dir to make.
@@ -289,7 +289,7 @@ def from_config():
     logging.info(u'Running from_config()')
 
     # Load config file
-    config_path = os.path.join(u'config', 'scan_for_threads.yaml')
+    config_path = os.path.join(u'config', 'w_thread_simple.yaml')
     config = YAMLConfigThreadSimple(config_path)
     # Set values from config file
     board_name = unicode(config.board_name)
