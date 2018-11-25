@@ -95,14 +95,14 @@ def search_for_threads(req_ses, board_name, dl_dir,
         u'&search_filename='
         u'&search_datefrom={date_from}'# Specify start date
         u'&search_dateto={date_to}'# Specify end date
-        u'&search_op=all'
+        u'&search_op=op'# Only look for OP posts
         u'&search_del=dontcare'
         u'&search_int=dontcare'
         u'&search_ord=new'
         u'&search_capcode=all'
         u'&search_res=post'
         u'&offset={offset}'# Specify results offset
-        '&search_res=op'# Only show thread OP in results
+        u'&search_res=op'# Only show thread OP in results
     )
     current_page_url = current_page_template.format(
         date_from=date_from, date_to=date_to, offset=offset)
@@ -152,7 +152,7 @@ def insert_if_new(db_ses, SimpleThreads, thread_nums):
         check_result = check_q.first()
         if check_result:
             # UPDATE
-##            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
+            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
             continue
         else:
             # INSERT
@@ -234,13 +234,20 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
         working_date = fut_date
         continue
     logging.debug(u'total_pages={0!r}'.format(total_pages))
+
     # Save threadIDs to file as a backup
-    thread_nums_dump_path = os.path.join(dl_dir, 'threads', filename)
     filename = ('l{l}.h{h}.txt'.format(l=date_from, h=date_to))
+    thread_nums_dump_path = os.path.join(dl_dir, 'threads', filename)
     logging.debug(u'thread_nums_dump_path={0!r}'.format(thread_nums_dump_path))
-    with open(thread_nums_dump_path, 'w') as df:
+
+    dump_dir, dump_filename = os.path.split(thread_nums_dump_path)
+    if len(dump_dir) != 0:# Ensure dir exists
+        if not os.path.exists(dump_dir):
+            os.makedirs(dump_dir)
+
+    with open(thread_nums_dump_path, 'a') as df:
         for thread_num_out in all_thread_nums:
-            df.append('{0}'.format(thread_num_out))
+            df.write('t{0}\n'.format(thread_num_out))
     logging.info(u'Finished searching range: {0!r} to {1!r}'.format(date_from, date_to))
     return
 
@@ -353,6 +360,7 @@ def from_config():
 
     assert(date_from > datetime.date(2000,1,1))
     assert(date_to > datetime.date(2000,1,1))
+
 
     # Setup requests session
     req_ses = requests.Session()
