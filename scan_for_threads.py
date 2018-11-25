@@ -25,6 +25,7 @@ import sqlite3# Because spinning up a new DB is easier this way
 import sqlalchemy# For talking to DBs
 from sqlalchemy.ext.declarative import declarative_base
 import bs4
+import yaml
 # local
 import common
 import warosu_tables
@@ -32,6 +33,48 @@ import warosu_tables
 
 Base = declarative_base()# Setup system to keep track of tables and classes
 
+
+
+class YAMLConfigScanForThreads():
+    """Handle reading, writing, and creating YAML config files."""
+    def __init__(self, config_path=None):
+        # Set default values
+        self.board_name = 'board_shortname'
+        self.db_filepath = 'db/filepath/if.sqlite'
+        self.connection_string = 'engine://sqlalchemy_parameters'
+        self.thread_num = 0
+        self.dl_dir = 'download/filepath/'
+        self.date_from = datetime.date(1970,1,1)
+        self.date_to = datetime.date(1970,1,1)
+        if config_path:
+            config_dir = os.path.dirname(config_path)
+            if len(config_dir) > 0:# Only try to make a dir if ther is a dir to make.
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)# Ensure config dir exists.
+            if os.path.exists(config_path):
+                self.load(config_path)# Load config file if it exists.
+            else:
+                self.save(config_path, self.__class__())# Create an example config file if no file exists.
+        return
+    def load(self, config_path):
+        """Load configuration from YAML file."""
+        logging.debug('Reading from config_path={0!r}'.format(config_path))
+        with open(config_path, 'rb') as load_f:# Read the config from file.
+            config = yaml.safe_load(load_f)
+        for key in config.keys():# Store values to class instance.
+            setattr(self, key, config[key])# Sets self.key to config[key]
+        return
+    def save(self, config_path, instance):
+        """Save current configuration to YAML file."""
+        logging.debug('Saving to config_path = {0!r}'.format(config_path))
+        with open(config_path, 'wb') as save_f:# Write data to file.
+            yaml.dump(
+                data=vars(instance),# All vars in object 'instance' as dict
+                stream=save_f,
+                explicit_start=True,# Begin with '---'
+                explicit_end=True,# End with '...'
+                default_flow_style=False)# Output as multiple lines
+        return
 
 
 
@@ -208,6 +251,22 @@ def scan_delta(low_date, end_date, delta):
     return
 
 
+def detect_fake_date(date_obj):
+    """Detect a predefined dummy value date"""
+    if (type(date_obj) not in [datetime.datetime, datetime.date, datetime.time]):
+        logging.error('Improper date object type!')
+        return True
+    predefined_fake_date = datetime.date(1970,1,1)# 1st Jan 1970, classic dummy date.
+    slop_delta = datetime.timedelta(days=7)# Some slop to tolerate whatever decrease in resolution if conversions occur.
+    l_date = predefined_fake_date - datetime.timedelta(days=7)
+    h_date = predefined_fake_date + datetime.timedelta(days=7)
+    if ( (l_date) <= date_obj <= (h_date) ):
+        logging.info('Predefined fake date detected!')
+        return True
+    else:
+        return False
+
+
 def dev():
     logging.warning(u'running dev()')
     # Set run parameters
@@ -263,16 +322,27 @@ def dev():
 
 def from_config():
     logging.info(u'Running from_config()')
+    # Load config file
+    config_path = os.path.join(u'config', 'scan_for_threads.yaml')
+    config = YAMLConfigScanForThreads(config_path)
+    # Set values from config file
+    board_name = config.board_name
+    db_filepath = config.db_filepath
+    connection_string = config.connection_string
+    thread_num = config.thread_num
+    dl_dir = config.dl_dir
+    date_from = config.date_from
+    date_to = config.date_to
 
-    # Set run parameters
-    board_name = u'tg'
-    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
-    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
-    logging.debug(u'connection_string={0!r}'.format(connection_string))
-    thread_num = 40312936 # https://warosu.org/tg/thread/40312936
-    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
-    date_from = datetime.date(2018, 11, 1)# Year, month, day of month
-    date_to = datetime.date(2018, 11, 2)# Year, month, day of month
+    # Validate parameters
+    if detect_fake_date(date_obj=date_from)
+        logging.error('date_from not properly set!')
+        logging.debug('date_from = {0!r}'.format(date_from))
+        return
+    if detect_fake_date(date_obj=date_to)
+        logging.error('date_to not properly set!')
+        logging.debug('date_to = {0!r}'.format(date_to))
+        return
 
     # Setup requests session
     req_ses = requests.Session()
@@ -306,7 +376,6 @@ def from_config():
         date_from = date_from,
         date_to = date_to,
     )
-
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
     db_ses.commit()

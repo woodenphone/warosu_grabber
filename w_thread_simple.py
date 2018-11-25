@@ -25,14 +25,55 @@ import sqlite3# Because spinning up a new DB is easier this way
 import sqlalchemy# For talking to DBs
 from sqlalchemy.ext.declarative import declarative_base
 import bs4
+import yaml
 # local
 import common
 import warosu_tables
-
+import w_post_extractors
 
 Base = declarative_base()# Setup system to keep track of tables and classes
 
 
+
+class YAMLConfigThreadSimple():
+    """Handle reading, writing, and creating YAML config files."""
+    def __init__(self, config_path=None):
+        # Set default values
+        self.board_name = u'board_shortname'
+        self.db_filepath = u'db/filepath/if.sqlite'
+        self.connection_string = u'engine://sqlalchemy_parameters'
+        self.thread_num = 0
+        self.dl_dir = u'download/filepath/'
+        self.echo_sql = True
+        if config_path:
+            config_dir = os.path.dirname(config_path)
+            if len(config_dir) > 0:# Only try to make a dir if ther is a dir to make.
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)# Ensure config dir exists.
+            if os.path.exists(config_path):
+                self.load(config_path)# Load config file if it exists.
+            else:
+                self.save(config_path, self.__class__())# Create an example config file if no file exists.
+        return
+    def load(self, config_path):
+        """Load configuration from YAML file."""
+        logging.debug('Reading from config_path={0!r}'.format(config_path))
+        with open(config_path, 'rb') as load_f:# Read the config from file.
+            config = yaml.safe_load(load_f)
+        for key in config.keys():# Store values to class instance.
+            setattr(self, key, config[key])# Sets self.key to config[key]
+        return
+    def save(self, config_path, instance):
+        """Save current configuration to YAML file."""
+        logging.debug('Saving to config_path = {0!r}'.format(config_path))
+        with open(config_path, 'wb') as save_f:# Write data to file.
+            yaml.dump(
+                data=vars(instance),# All vars in object 'instance' as dict
+                stream=save_f,
+                explicit_start=True,# Begin with '---'
+                explicit_end=True,# End with '...'
+                default_flow_style=False)# Output as multiple lines
+        return
 
 
 
@@ -47,14 +88,73 @@ def is_post_in_results(results, thread_num, num, subnum):
         tn = (result.thread_num == thread_num)
         pn = (result.num == num)
         sn = (result.subnum == subnum)
-        logging.debug(u'tn={0!r}, pn={1!r}, sn={2!r}'.format(tn, pn, sn))# PERFOMANCE: Disable this
+##        logging.debug(u'Matches: tn={0!r}, pn={1!r}, sn={2!r}'.format(tn, pn, sn))# PERFOMANCE: Disable this
         if (tn and pn and sn):
             return result
     return None
 
 
-def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread_num, dl_dir):
-    """Save the ghost posts in a thread in a very simple manner"""
+def simple_save_thread(db_ses, req_ses, SimplePosts, board_name, thread_num, dl_dir):
+    """Save the ghost posts in a thread in a very simple manner."""
+    logging.info(u'Fetching thread: {0!r}'.format(thread_num))
+    # Calculate values
+    thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
+    thread_filename = 'warosu.{bn}.{tn}.html'.format(bn=board_name, tn=thread_num)
+    thread_filepath = os.path.join(dl_dir, u'{0}'.format(board_name), thread_filename)
+    logging.debug(u'thread_url={0!r}'.format(thread_url))
+
+    # Look for all posts for this thread in DB
+    logging.debug('About to look for existing posts for this thread')
+    existing_posts_q = db_ses.query(SimplePosts)\
+        .filter(SimplePosts.thread_num == thread_num,)
+    existing_posts = existing_posts_q.all()
+    logging.debug(u'existing_posts={0!r}'.format(existing_posts))
+    logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
+
+    # Load thread
+    thread_res = common.fetch( requests_session=req_ses, url=thread_url, )
+    thread_html = thread_res.content
+    # Save for debugging/hoarding
+    logging.debug(u'thread_filepath={0!r}'.format(thread_filepath))
+    common.write_file(file_path=thread_filepath, data=thread_res.content)# Store page to disk
+
+    # Find posts
+    posts = w_post_extractors.split_thread_into_posts(html=thread_html)
+    logging.debug(u'len(posts)={0!r}'.format(len(posts)))
+    for post_html in posts:# Process each post
+        # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
+        num_s, subnum_s = w_post_extractors.num_subnum(fragment=post_html)
+        num = int(num_s)
+        subnum = int(subnum_s)
+        # Detect if ghost post
+        is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
+        if (not is_ghost):# Skip post if not ghost
+            logging.debug(u'Skipping regular reply: thread_num={0!r}, num={1!r}, subnum={2!r}'.format(thread_num, num, subnum))
+            continue
+        logging.debug(u'Found ghost reply: reply: thread_num={0!r}, num={1!r}, subnum={2!r}'.format(thread_num, num, subnum))
+        # Check if post is already in DB
+        post_is_in_db = is_post_in_results(results=existing_posts, thread_num=thread_num,
+             num=num, subnum=subnum)
+        if (post_is_in_db):
+            logging.debug(u'Post already saved: thread_num={0!r}, num={1!r}, subnum={2!r}'.format(thread_num, num, subnum))
+        else:
+            logging.debug('About to insert ghost post')
+            # Add post to DB
+            new_simplepost = SimplePosts(
+                num = num,
+                subnum = subnum,
+                thread_num = thread_num,
+                post_html = post_html,
+            )
+            db_ses.add(new_simplepost)
+            logging.info(u'Inserted a ghost post into SimplePosts')
+    logging.info(u'Fetched thread: {0!r}'.format(thread_num))
+    return
+
+
+def simple_save_thread_bs(db_ses, req_ses, SimplePosts, board_name, thread_num, dl_dir):
+    """Save the ghost posts in a thread in a very simple manner.
+    Uses bs4, which may be slow"""
     logging.info(u'Fetching thread: {0!r}'.format(thread_num))
     # Calculate values
     thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
@@ -108,11 +208,11 @@ def simple_save_thread(db_ses, req_ses, Threads, SimplePosts, board_name, thread
             logging.debug(u'Post {0}.{1} in thread {2} already saved'.format(num ,subnum, thread_num))
         else:
             logging.debug('About to insert ghost post')
-            logging.debug(u'SimplePosts={0!r}'.format(SimplePosts))
-            logging.debug(u'num={0!r}'.format(num))
-            logging.debug(u'subnum={0!r}'.format(subnum))
-            logging.debug(u'thread_num={0!r}'.format(thread_num))
-            logging.debug(u'post_html={0!r}'.format(post_html))
+##            logging.debug(u'SimplePosts={0!r}'.format(SimplePosts))
+##            logging.debug(u'num={0!r}'.format(num))
+##            logging.debug(u'subnum={0!r}'.format(subnum))
+##            logging.debug(u'thread_num={0!r}'.format(thread_num))
+##            logging.debug(u'post_html={0!r}'.format(post_html))
             # Add post to DB
             new_simplepost = SimplePosts(
                 num = num,
@@ -143,8 +243,6 @@ def thread_simple_dev():
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
-    Boards = None# warosu_tables.table_factory_simple_boards(Base)
-    Threads = None# warosu_tables.table_factory_simple_threads(Base, board_name)
     SimplePosts = warosu_tables.table_factory_simple_posts(Base, board_name)
 
     # Setup/start/connect to DB
@@ -169,7 +267,6 @@ def thread_simple_dev():
     simple_save_thread(
         db_ses=session,
         req_ses=req_ses,
-        Threads=Threads,
         SimplePosts=SimplePosts,
         board_name=board_name,
         thread_num=thread_num,
@@ -192,15 +289,16 @@ def from_config():
     logging.info(u'Running from_config()')
 
     # Load config file
+    config_path = os.path.join(u'config', 'scan_for_threads.yaml')
+    config = YAMLConfigThreadSimple(config_path)
+    # Set values from config file
+    board_name = unicode(config.board_name)
+    db_filepath = unicode(config.db_filepath)
+    connection_string = unicode(config.connection_string)
+    thread_num = int(config.thread_num)# Temporary
+    dl_dir = unicode(config.dl_dir)
+    echo_sql = bool(config.echo_sql)
 
-    # Set run parameters
-    board_name = u'tg'
-    db_filepath = os.path.join(u'temp', u'{0}.sqlite'.format(board_name))
-    connection_string = common.convert_filepath_to_connect_string(filepath=db_filepath)
-    logging.debug(u'connection_string={0!r}'.format(connection_string))
-    thread_num = 40312936 # https://warosu.org/tg/thread/40312936 #Ghost post example
-    thread_num = 40312392 # https://warosu.org/tg/thread/40312392 # Tripcode example
-    dl_dir = os.path.join(u'dl', u'wtest', u'{0}'.format(board_name))
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
@@ -216,7 +314,7 @@ def from_config():
     # Start the DB engine
     engine = sqlalchemy.create_engine(
         connection_string,# Points SQLAlchemy at a DB
-        echo=True# Output DB commands to log
+        echo=echo_sql# Output DB commands to log
     )
     # Link table/class mapping to DB engine and make sure tables exist.
     Base.metadata.bind = engine# Link 'declarative' system to our DB
@@ -229,7 +327,6 @@ def from_config():
     simple_save_thread(
         db_ses=session,
         req_ses=req_ses,
-        Threads=Threads,
         SimplePosts=SimplePosts,
         board_name=board_name,
         thread_num=thread_num,

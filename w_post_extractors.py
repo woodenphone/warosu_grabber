@@ -298,6 +298,28 @@ def title(fragment):
         return None# NULL
 
 
+def split_thread_into_posts(html):# TODO: Write tests
+    """Split thread into post HTML fragments.
+    Start of OP:           <div id="p40312936" itemscope="" itemtype="http://schema.org/DiscussionForumPosting">
+    1st line of next post: <table itemscope="" itemtype="http://schema.org/Comment"><tbody><tr>
+    2nd line of next post: <td class="doubledash">&gt;&gt;</td>
+    3rd line of next post: <td class="reply" id="p40313137">"""
+    # Select only the OP
+    op_fragment_search = re.search('(<div id="p\d+" itemscope itemtype="http://schema.org/DiscussionForumPosting">(?:.|\n|\t)+?)<table itemscope itemtype="http://schema.org/Comment"><tr>', html)
+    op_fragment = op_fragment_search.group(1)
+    # (?:.|\n|\t) is to match any character, because some regex engines do not do DOTALL functionality
+    reply_fragments = re.findall('(<table itemscope itemtype="http://schema.org/Comment">(?:.|\n|\t)+?</table>)', html)
+    post_fragments = [op_fragment] + reply_fragments
+    return post_fragments
+
+
+def detect_ghost_post(fragment):# TODO: Write tests
+    """Given a post HTML fragment, determine if it is a ghost post."""
+    if ('<img class="inline" src="/media/internal.png" width="19" height="17" alt="[INTERNAL]" title="This is not an archived reply" />&nbsp;' in fragment):
+        return True
+    else:
+        return False
+
 
 
 def main():

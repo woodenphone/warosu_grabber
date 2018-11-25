@@ -4,11 +4,11 @@ download/
 dl/
 git_ignored/
 temp/
-py8chan/
-py8chanutf/
+config/
 
 # junk
 *.pyc
 
 # Config files
 *_config.py
+*.yaml
