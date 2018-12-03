@@ -165,10 +165,10 @@ class Thread():
         self.html_filepath = os.path.join(self.dl_dir, u'{0}.html'.format(self.thread_num))
         # Load thread and process into posts if requested
         if load_immediately:
-            self.load_posts()
+            self.load_posts_to_self()
         return
 
-    def load_posts(self):
+    def load_posts_to_self(self):
         """Load a thread from warosu"""
         logging.debug(u'Loading posts for thread: {0!r}'.format(self.thread_num))
         # Load page
@@ -255,7 +255,7 @@ class Thread():
                 logging.debug('Post t{0!r}.p{1!r} is not in DB'.format(post.parent, post.num))
                 if post.is_ghost:
                     logging.debug('Inserting ghost post t{0!r}.p{1!r}'.format(post.parent, post.num))
-                    new_posts.append(post)
+                    new_posts.append(post)#TODO: FIXME: DOES NOT GET ALL GHOST POSTS!
         logging.debug('Inserting {0!r} new posts'.format(len(new_posts)))
         # Insert new posts for this thread
         self.insert_posts_list(posts_list=new_posts, db_ses=db_ses, FuukaPosts=FuukaPosts)
@@ -304,13 +304,13 @@ class WarosuPost():
         self.has_image = None# Does this post have an image?
         # Parse post HTML into thread vars if given
         if self.html:
-            self._parse(
+            self.parse_to_self(
                 html=self.html,
                 board_images_path=self.board_images_path
             )
         return
 
-    def _parse(self, html, board_images_path):
+    def parse_to_self(self, html, board_images_path):
         """Parse a post HTML fragment and set instance values to found values"""
 ##        # doc_id int unsigned not null auto_increment,# Cannot be retrieved
 ##        # id decimal(39,0) unsigned not null default '0',# Cannot be retrieved
@@ -353,7 +353,6 @@ class WarosuPost():
 ##        # delpass tinytext,# Cannot be retrieved
         # sticky bool not null default '0',
         self.sticky = w_post_extractors.sticky(html)
-
         # Added-on values
         logging.debug(u'self.subnum={0!r}'.format(self.subnum))
         self.is_ghost = (self.subnum != 0)# Ghost posts have a subnum other than zero
@@ -387,6 +386,7 @@ class WarosuPost():
             sticky = self.sticky,
             )
         db_ses.add(new_row)
+        return
 
 
 
@@ -452,8 +452,18 @@ def dev():
     )
     thread = board.load_thread(40312936)
     thread.insert_new_ghost_posts(db_ses, FuukaPosts)
-    logging.warning(u'exiting dev()')
 
+    # Persist data now that thread has been grabbed
+    logging.info(u'Committing')
+    db_ses.commit()
+
+    # Gracefully disconnect from DB
+    logging.info(u'Ending DB session')
+    db_ses.close()# Release connection back to pool.
+    engine.dispose()# Close all connections.
+
+    logging.warning(u'exiting dev()')
+    return
 
 
 def main():
