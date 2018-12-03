@@ -147,7 +147,7 @@ def fetch(requests_session, url, method='get', data=None, expect_status=200, hea
 
 # The magic two IO functions
 def write_file(file_path, data):
-    """Write to an file in an existing folder.
+    """Write to an file.
     Create dir if destination dir does not exist"""
     # Ensure output dir exists
     folder = os.path.dirname(file_path)
@@ -167,6 +167,21 @@ def read_file(file_path):
         data = f.read()
     return data
 # /The magic two IO functions
+
+
+def write_unicode_file(file_path, data):
+    """Write to an file in an existing folder.
+    Create dir if destination dir does not exist"""
+    data_out = data.encode('utf8')
+    # Ensure output dir exists
+    folder = os.path.dirname(file_path)
+    if folder:
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+    assert(os.path.exists(os.path.dirname(file_path)))
+    with open(file_path, 'wb') as f:
+        f.write(data_out)
+    return
 
 
 

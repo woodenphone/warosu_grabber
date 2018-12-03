@@ -115,48 +115,54 @@ class YAMLConfigWClasses():
 
 class Board():
     """A board from Warosu"""
-    def __init__(self, base_url, board_name, req_ses, dl_dir):
+    def __init__(self, base_url, board_name, req_ses, dl_dir, board_images_path):
         # Store arguments
         self.base_url = unicode(base_url)# E.G. u'https://warosu.org'; No trailing slash.
         self.board_name = unicode(board_name)# Board shortname, E.G. u'tg'
         self.req_ses = req_ses# requests Session object
-        self.dl_dir = unicode(dl_dir)
+        self.dl_dir = unicode(dl_dir)# Dir to put files into
+        self.board_images_path = board_images_path# Used for finding images. E.G. u'data/tg'
         # Initialise variables
-        threads = {}
+        self.threads = {}
         pass
 
     def load_thread(self, thread_num):
         logging.debug('Loading thread: {0!r}'.format(thread_num))
         new_thread = Thread(
-            board=self,
+            base_url=self.base_url,
+            board_name=self.board_name,
             thread_num=thread_num,
             req_ses=self.req_ses,
             dl_dir=self.dl_dir,
-            load_immediately=True
+            load_immediately=True,
+            board_images_path=self.board_images_path
         )
         self.threads[thread_num] = new_thread
-        return
+        return new_thread
 
 
 
 
 class Thread():
     """A thread from Warosu"""
-    def __init__(self, board, thread_num, req_ses, dl_dir, load_immediately=True):
+    def __init__(self, base_url, board_name, thread_num,
+        req_ses, dl_dir, board_images_path, load_immediately=True, ):
         # Store arguments
-        self.board = board
-        self.base_url = self.board.base_url# E.G. u'https://warosu.org'; No trailing slash.
-        self.board_name = self.board.board_name# Board shortname, E.G. u'tg'
+        self.base_url = base_url# E.G. u'https://warosu.org'; No trailing slash.
+        self.board_name = board_name# Board shortname, E.G. u'tg'
         self.thread_num = int(thread_num)# Thread id number
         self.req_ses = req_ses# requests Session object
         self.dl_dir = dl_dir
+        self.board_images_path = board_images_path
         # Initialise variables
         self.posts = {}
-        self.url = u'{b_u}/{brd}/thread/{t_num}'.format(b_u=self.base_url,
-            brd=self.board_name, t_num=self.thread_num)# ex. u'https://warosu.org/g/thread/68630359'
+        self.url = u'{b_u}/{brd}/thread/{t_num}'.format(
+            b_u=self.base_url,
+            brd=self.board_name,
+            t_num=self.thread_num)# ex. u'https://warosu.org/g/thread/68630359'
         self.html = None# Initialise as None; unicode later.
         self.time_grabbed = None# Initialise as None; datetime.datetime later.
-        self.html_filepath = os.path.join(self.dl_dir, '{0}.html'.format(self.thread_num))
+        self.html_filepath = os.path.join(self.dl_dir, u'{0}.html'.format(self.thread_num))
         # Load thread and process into posts if requested
         if load_immediately:
             self.load_posts()
@@ -164,30 +170,42 @@ class Thread():
 
     def load_posts(self):
         """Load a thread from warosu"""
-        logging.debug('Loading posts for thread: {0!r}'.format(self.thread_num))
-        self._thread_res = common.fetch(requests_session=self.req_ses, url=self.url)
+        logging.debug(u'Loading posts for thread: {0!r}'.format(self.thread_num))
+        # Load page
+        thread_res = common.fetch(requests_session=self.req_ses, url=self.url)
         self.time_grabbed = datetime.datetime.utcnow()# Record when we got the thread
+        # Decode page into unicode object
         # TODO: Ensure unicode everywhere
-        self.html = self._thread_res.content
-        common.write_file(file_path=self.html_filepath, data=self.html)# TODO: Ensure unicode works with this
-        self.posts = self._split_posts(thread_num=self.thread_num,
-            html=self.html, time_grabbed=self.time_grabbed)
+        logging.debug(u'type(thread_res.content)={0!r}'.format(type(thread_res.content)))
+        self.html = thread_res.content.decode(u'utf8')
+        logging.debug(u'type(html)={0!r}'.format(type(self.html)))
+        # Store page
+        common.write_unicode_file(file_path=self.html_filepath, data=self.html)# TODO: Ensure unicode works with this
+        # Parse page
+        self._split_posts(
+            thread_num=self.thread_num,
+            html=self.html,
+            time_grabbed=self.time_grabbed,
+            board_images_path=self.board_images_path
+        )
         return
 
-    def _split_posts(self, thread_num, html, time_grabbed):
+    def _split_posts(self, thread_num, html, time_grabbed, board_images_path):
         """Split page into post fragments and instantiate child Post objects for them"""
+        # Split poage into posts
         fragments = w_post_extractors.split_thread_into_posts(html)
         for fragment in fragments:
-            new_post = WarosuPost(thread_num=thread_num, html=html, time_grabbed=time_grabbed)
+            # Parse post
+            new_post = WarosuPost(thread_num=thread_num, board_images_path=board_images_path, html=html, time_grabbed=time_grabbed)
             if new_post.num:
                 self.posts[new_post.num] = new_post
             else:
-                logging.error('New post did not have "num", did not store it!')
+                logging.error(u'New post did not have "num", did not store it!')
         return
 
     def insert_posts_dict(self, posts_dict, FuukaPosts):
         """Insert a dict of Post objects into the supplied FuukaPosts table using SQLAlchemy."""
-        logging.debug('Attempting to insert all posts from thread {0!r} into the DB'.format(self.thread_num))
+        logging.debug(u'Attempting to insert all posts from thread {0!r} into the DB'.format(self.thread_num))
         for num in posts_dict.keys():
             logging.debug('Attempting to insert post {0!r}'.format(num))
             post = posts_dict[num]
@@ -205,6 +223,7 @@ class Thread():
         return
 
     def lookup_posts(self, db_ses, FuukaPosts, thread_num):
+        """Find all posts for this thread in the DB"""
         # Look for all posts for this thread in DB
         logging.debug('About to look for existing posts for this thread')
         existing_posts_q = db_ses.query(FuukaPosts)\
@@ -212,29 +231,35 @@ class Thread():
         existing_post_rows = existing_posts_q.all()
         logging.debug(u'existing_post_rows={0!r}'.format(existing_post_rows))
         logging.debug(u'len(existing_post_rows)={0!r}'.format(len(existing_post_rows)))
+        # Keep only post nums
         db_post_nums = []
         for existing_post_row in existing_post_rows:
             post_num = existing_post_row.num
             db_post_nums.append(post_num)
         return db_post_nums
 
-    def insert_new_ghost_posts(self, db_ses, FuukaPosts, thread_num):
+    def insert_new_ghost_posts(self, db_ses, FuukaPosts):
+        """Check for existing posts for a thread, then insert any new ghost posts into the DB"""
         # Lookup existing posts for this thread
-        db_post_nums = self.lookup_posts(db_ses=db_ses, FuukaPosts=FuukaPosts, thread_num=thread_num)
+        db_post_nums = self.lookup_posts(
+            db_ses=db_ses,
+            FuukaPosts=FuukaPosts,
+            thread_num=self.thread_num
+        )
         # Find new posts
         new_posts = []
+        logging.debug(u'self.posts={0!r}'.format(self.posts))
         for post_key in self.posts.keys():
             post = self.posts[post_key]
             if (post.num in db_post_nums):
                 logging.debug('Post t{0!r}.p{1!r} is not in DB'.format(post.parent, post.num))
                 if post.is_ghost:
-                    logging.debug('Post t{0!r}.p{1!r} is ghost'.format(post.parent, post.num))
-                    logging.debug('Inserting post t{0!r}.p{1!r}'.format(post.parent, post.num))
+                    logging.debug('Inserting ghost post t{0!r}.p{1!r}'.format(post.parent, post.num))
                     new_posts.append(post)
         logging.debug('Inserting {0!r} new posts'.format(len(new_posts)))
         # Insert new posts for this thread
         self.insert_posts_list(posts_list=new_posts, FuukaPosts=FuukaPosts)
-        logging.debug('Inserted {0!r} posts for thread t{1!r}'.format(len(new_posts), thread_num))
+        logging.debug('Inserted {0!r} posts for thread t{1!r}'.format(len(new_posts), self.thread_num))
         return
 
 
@@ -242,8 +267,10 @@ class Thread():
 
 class WarosuPost():
     """A post from Warosu"""
-    def __init__(self, thread_num, html=None, time_grabbed=None):
+    def __init__(self, board_images_path, thread_num, html=None, time_grabbed=None):
         # Store arguments
+        self.board_images_path = board_images_path
+        self.thread_num = thread_num
         self.html = html
         self.time_grabbed = time_grabbed
         # Init future vars as None:
@@ -275,53 +302,57 @@ class WarosuPost():
         # Custom values
         self.is_ghost = None# Is this post a ghost post?
         self.has_image = None# Does this post have an image?
+        # Parse post HTML into thread vars if given
         if self.html:
-            self._parse(html)
+            self._parse(
+                html=self.html,
+                board_images_path=self.board_images_path
+            )
         return
 
-    def _parse(self, html):
+    def _parse(self, html, board_images_path):
         """Parse a post HTML fragment and set instance values to found values"""
 ##        # doc_id int unsigned not null auto_increment,# Cannot be retrieved
 ##        # id decimal(39,0) unsigned not null default '0',# Cannot be retrieved
         # num int unsigned not null,
-        self.num, self.subnum = w_post_extractors.num_subnum(fragment)
+        self.num, self.subnum = w_post_extractors.num_subnum(html)
         # parent int unsigned not null default '0',
         self.parent = self.thread_num
         # timestamp int unsigned not null,
-        self.timestamp = w_post_extractors.timestamp(fragment)
+        self.timestamp = w_post_extractors.timestamp(html)
         # preview varchar(20),
         # preview_w smallint unsigned not null default '0',
         # preview_h smallint unsigned not null default '0',
-        self.preview, self.preview_w, self.preview_h = w_post_extractors.preview_preview_w_preview_h(fragment)
+        self.preview, self.preview_w, self.preview_h = w_post_extractors.preview_preview_w_preview_h(html)
         # media text,
         # media_w smallint unsigned not null default '0',
         # media_h smallint unsigned not null default '0',
         # media_size int unsigned not null default '0',
-        self.media, self.media_w, self.media_h, self.media_size = w_post_extractors.media_media_w_media_h_media_size(fragment)
+        self.media, self.media_w, self.media_h, self.media_size = w_post_extractors.media_media_w_media_h_media_size(html)
         # media_hash varchar(25),
-        self.media_hash = w_post_extractors.media_hash(fragment)
+        self.media_hash = w_post_extractors.media_hash(html)
         # media_filename varchar(20),
-        self.media_filename = w_post_extractors.media_filename(fragment, board_images_path)
+        self.media_filename = w_post_extractors.media_filename(html, board_images_path)
         # spoiler bool not null default '0',
-        self.spoiler = w_post_extractors.spoiler(fragment)
+        self.spoiler = w_post_extractors.spoiler(html)
         # deleted bool not null default '0',
-        self.deleted = w_post_extractors.deleted(fragment)
+        self.deleted = w_post_extractors.deleted(html)
         # capcode enum('N', 'M', 'A', 'G') not null default 'N',
-        self.capcode = w_post_extractors.capcode(fragment)
+        self.capcode = w_post_extractors.capcode(html)
         # email varchar(100),# Cannot be retrieved
-    ##    email = w_post_Extractors.email(fragment)
+    ##    email = w_post_Extractors.email(html)
         self.email = u'EMAIL FINDING NOT IMPLIMENTED!'
         # name varchar(100),
-        self.name = w_post_extractors.name(fragment)
+        self.name = w_post_extractors.name(html)
         # trip varchar(25),
-        self.trip = w_post_extractors.trip(fragment)
+        self.trip = w_post_extractors.trip(html)
         # title varchar(100),
-        self.title = w_post_extractors.title(fragment)
+        self.title = w_post_extractors.title(html)
         # comment text,
-        self.comment = w_post_extractors.comment(fragment)
+        self.comment = w_post_extractors.comment(html)
 ##        # delpass tinytext,# Cannot be retrieved
         # sticky bool not null default '0',
-        self.sticky = w_post_extractors.sticky(fragment)
+        self.sticky = w_post_extractors.sticky(html)
 
         # Added-on values
         self.is_ghost = (self.subnum != 0)# Ghost posts have a subnum other than zero
@@ -397,25 +428,29 @@ def dev():
     )
     # Link table/class mapping to DB engine and make sure tables exist.
     Base.metadata.bind = engine# Link 'declarative' system to our DB
-    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
+    Base.metadata.create_all(checkfirst=True)# Create tables based on classes. checkfirst
     # Create a session to interact with the DB
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
     # Generate table classes
     FuukaPosts = tables_fuuka.fuuka_posts(Base, board_name)# Creates table class using factory function
+    # Ensure tables exist
+    Base.metadata.create_all(engine, checkfirst=True)
 
     # Setup requests session
     req_ses = requests.Session()
 
     # Test grabbing a thread
+    # https://warosu.org/tg/thread/40312936
     board = Board(
         base_url = u'https://warosu.org',
-        board_name = u'g',
+        board_name = u'tg',
         req_ses = req_ses,
         dl_dir = dl_dir,
+        board_images_path = u'data/tg',
     )
-    thread = board.load_thread(68630359)
-    thread.insert_new_ghost_posts()
+    thread = board.load_thread(40312936)
+    thread.insert_new_ghost_posts(db_ses, FuukaPosts)
     logging.warning(u'exiting dev()')
 
 

@@ -103,7 +103,7 @@ def preview_preview_w_preview_h(fragment):
     if preview_search:
         logging.debug('Found thumbnail')
         preview = preview_search.group(1)
-        #thumb_alt = preview_search.group(2)# num
+        thumb_alt = preview_search.group(2)# num
         if preview_search.group(3):
             logging.debug('Found thumbnail dimensions')
             preview_w = preview_search.group(3)
@@ -113,7 +113,7 @@ def preview_preview_w_preview_h(fragment):
             preview_h = None# NULL
     else:
         preview = None# NULL
-##        thumb_alt = None# NULL
+        thumb_alt = None# NULL
         preview_w = None# NULL
         preview_h = None# NULL
     return (preview, preview_w, preview_h)
