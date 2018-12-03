@@ -196,14 +196,14 @@ class Thread():
         fragments = w_post_extractors.split_thread_into_posts(html)
         for fragment in fragments:
             # Parse post
-            new_post = WarosuPost(thread_num=thread_num, board_images_path=board_images_path, html=html, time_grabbed=time_grabbed)
+            new_post = WarosuPost(thread_num=thread_num, board_images_path=board_images_path, html=fragment, time_grabbed=time_grabbed)
             if new_post.num:
                 self.posts[new_post.num] = new_post
             else:
                 logging.error(u'New post did not have "num", did not store it!')
         return
 
-    def insert_posts_dict(self, posts_dict, FuukaPosts):
+    def insert_posts_dict(self, posts_dict, db_ses, FuukaPosts):
         """Insert a dict of Post objects into the supplied FuukaPosts table using SQLAlchemy."""
         logging.debug(u'Attempting to insert all posts from thread {0!r} into the DB'.format(self.thread_num))
         for num in posts_dict.keys():
@@ -213,7 +213,7 @@ class Thread():
         logging.debug('Inserted all posts from thread {0!r} into the DB'.format(self.thread_num))
         return
 
-    def insert_posts_list(self, posts_list, FuukaPosts):
+    def insert_posts_list(self, posts_list, db_ses, FuukaPosts):
         """Insert a list of Post objects into the supplied FuukaPosts table using SQLAlchemy."""
         logging.debug('Attempting to insert all posts from thread {0!r} into the DB'.format(self.thread_num))
         for post in posts_list:
@@ -251,14 +251,14 @@ class Thread():
         logging.debug(u'self.posts={0!r}'.format(self.posts))
         for post_key in self.posts.keys():
             post = self.posts[post_key]
-            if (post.num in db_post_nums):
+            if (post.num not in db_post_nums):
                 logging.debug('Post t{0!r}.p{1!r} is not in DB'.format(post.parent, post.num))
                 if post.is_ghost:
                     logging.debug('Inserting ghost post t{0!r}.p{1!r}'.format(post.parent, post.num))
                     new_posts.append(post)
         logging.debug('Inserting {0!r} new posts'.format(len(new_posts)))
         # Insert new posts for this thread
-        self.insert_posts_list(posts_list=new_posts, FuukaPosts=FuukaPosts)
+        self.insert_posts_list(posts_list=new_posts, db_ses=db_ses, FuukaPosts=FuukaPosts)
         logging.debug('Inserted {0!r} posts for thread t{1!r}'.format(len(new_posts), self.thread_num))
         return
 
@@ -355,35 +355,36 @@ class WarosuPost():
         self.sticky = w_post_extractors.sticky(html)
 
         # Added-on values
+        logging.debug(u'self.subnum={0!r}'.format(self.subnum))
         self.is_ghost = (self.subnum != 0)# Ghost posts have a subnum other than zero
         self.has_image = (self.media_filename != None)# Post has image if media_filename is not NULL. (media_filename is Fuuka's disk location of the image)
         return
 
     def db_insert(self, db_ses, FuukaPosts):
         new_row = FuukaPosts(
-            num = gp[u'num'],
-            subnum = gp[u'subnum'],
-            parent = gp[u'parent'],
-            timestamp = gp[u'timestamp'],
-            preview = gp[u'preview'],
-            preview_w = gp[u'preview_w'],
-            preview_h = gp[u'preview_h'],
-            media = gp[u'media'],
-            media_w = gp[u'media_w'],
-            media_h = gp[u'media_h'],
-            media_size = gp[u'media_size'],
-            media_hash = gp[u'media_hash'],
-            media_filename = gp[u'media_filename'],
-            spoiler = gp[u'spoiler'],
-            deleted = gp[u'deleted'],
-            capcode = gp[u'capcode'],
-            email = gp[u'email'],
-            name = gp[u'name'],
-            trip = gp[u'trip'],
-            title = gp[u'title'],
-            comment = gp[u'comment'],
+            num = self.num,
+            subnum = self.subnum,
+            parent = self.parent,
+            timestamp = self.timestamp,
+            preview = self.preview,
+            preview_w = self.preview_w,
+            preview_h = self.preview_h,
+            media = self.media,
+            media_w = self.media_w,
+            media_h = self.media_h,
+            media_size = self.media_size,
+            media_hash = self.media_hash,
+            media_filename = self.media_filename,
+            spoiler = self.spoiler,
+            deleted = self.deleted,
+            capcode = self.capcode,
+            email = self.email,
+            name = self.name,
+            trip = self.trip,
+            title = self.title,
+            comment = self.comment,
             delpass=None,# Can't be grabbed, server-side only value
-            sticky = gp[u'sticky'],
+            sticky = self.sticky,
             )
         db_ses.add(new_row)
 

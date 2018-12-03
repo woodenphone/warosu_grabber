@@ -77,7 +77,7 @@ def num_subnum(fragment):
     num_search_regex = (
     u'<input '
     u'(?:name="delete"|type="checkbox"| )+'# These can be in either order, and are seperated by spaces
-    u'value="(\d+),(\d+)')
+    u'value="(\d+),(\d+)"')
     num_search = re.search(num_search_regex, fragment)
     num_string = num_search.group(1)
     subnum_string = num_search.group(2)
