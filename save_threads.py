@@ -41,10 +41,10 @@ class YAMLConfigSaveThreads():
     """Handle reading, writing, and creating YAML config files."""
     def __init__(self, config_path=None):
         # Set default values
-        self.board_name = u'tg'# Shortname of board
-        self.db_filepath = u'temp/tg.db'# Path to SQLite DBif appropriate
-        self.connection_string = u'sqlite:///temp/tg.db'# SQLAlchemy connection string
-        self.dl_dir = u'temp/dl/tg/'# Where to download to
+        self.board_name = 'tg'# Shortname of board
+        self.db_filepath = 'temp/tg.db'# Path to SQLite DBif appropriate
+        self.connection_string = 'sqlite:///temp/tg.db'# SQLAlchemy connection string
+        self.dl_dir = 'temp/dl/tg/'# Where to download to
         self.echo_sql = True# Will SQLAlchemy print its DB commands?
         if config_path:
             config_dir = os.path.dirname(config_path)

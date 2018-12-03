@@ -24,7 +24,7 @@ import requests.exceptions
 import sqlite3# Because spinning up a new DB is easier this way
 import sqlalchemy# For talking to DBs
 from sqlalchemy.ext.declarative import declarative_base
-import bs4
+import yaml
 # local
 import common
 import w_post_extractors# Post parsing functions
@@ -32,14 +32,20 @@ import tables_fuuka# Table class factories for Fuuka-style DB
 
 
 
+
+Base = declarative_base()# Setup system to keep track of tables and classes
+
+
+
+
 class YAMLConfigWClasses():
     """Handle reading, writing, and creating YAML config files."""
     def __init__(self, config_path=None):
         # Set default values
-        self.board_name = u'tg'# Shortname of board
-        self.db_filepath = u'temp/tg.db'# Path to SQLite DBif appropriate
-        self.connection_string = u'sqlite:///temp/tg.db'# SQLAlchemy connection string
-        self.dl_dir = u'temp/dl/tg/'# Where to download to
+        self.board_name = 'tg'# Shortname of board
+        self.db_filepath = 'temp/tg.db'# Path to SQLite DBif appropriate
+        self.connection_string = 'sqlite:///temp/tg.db'# SQLAlchemy connection string
+        self.dl_dir = 'temp/dl/tg/'# Where to download to
         self.echo_sql = True# Will SQLAlchemy print its DB commands?
         if config_path:
             config_dir = os.path.dirname(config_path)
@@ -56,6 +62,9 @@ class YAMLConfigWClasses():
         logging.debug('Reading from config_path={0!r}'.format(config_path))
         with open(config_path, 'rb') as load_f:# Read the config from file.
             config = yaml.safe_load(load_f)
+        if config is None:
+            logging.error('Could not load config from {0!r}'.format(config_path))
+            return
         for key in config.keys():# Store values to class instance.
             setattr(self, key, config[key])# Sets self.key to config[key]
         logging.debug('Loaded config values: {0!r}'.format(config))
@@ -118,7 +127,13 @@ class Board():
 
     def load_thread(self, thread_num):
         logging.debug('Loading thread: {0!r}'.format(thread_num))
-        new_thread = Thread(board=self, thread_num=thread_num, req_ses=self.req_ses, load_immediately=True)
+        new_thread = Thread(
+            board=self,
+            thread_num=thread_num,
+            req_ses=self.req_ses,
+            dl_dir=self.dl_dir,
+            load_immediately=True
+        )
         self.threads[thread_num] = new_thread
         return
 
@@ -127,34 +142,39 @@ class Board():
 
 class Thread():
     """A thread from Warosu"""
-    def __init__(self, board, thread_num, req_ses, load_immediately=True):
+    def __init__(self, board, thread_num, req_ses, dl_dir, load_immediately=True):
         # Store arguments
-        self.board = self.board
+        self.board = board
         self.base_url = self.board.base_url# E.G. u'https://warosu.org'; No trailing slash.
         self.board_name = self.board.board_name# Board shortname, E.G. u'tg'
         self.thread_num = int(thread_num)# Thread id number
         self.req_ses = req_ses# requests Session object
+        self.dl_dir = dl_dir
         # Initialise variables
         self.posts = {}
-        self.url = u'{b_u}/{brd}/thread/'.format(b_u=base_url, brd=board)# ex. u'https://warosu.org/g/thread/68630359'
+        self.url = u'{b_u}/{brd}/thread/{t_num}'.format(b_u=self.base_url,
+            brd=self.board_name, t_num=self.thread_num)# ex. u'https://warosu.org/g/thread/68630359'
         self.html = None# Initialise as None; unicode later.
         self.time_grabbed = None# Initialise as None; datetime.datetime later.
-        self.html_filepath = os.path.join(dl_dir, '{0}.html'.format(self.thread_num))
+        self.html_filepath = os.path.join(self.dl_dir, '{0}.html'.format(self.thread_num))
         # Load thread and process into posts if requested
         if load_immediately:
             self.load_posts()
+        return
 
     def load_posts(self):
         """Load a thread from warosu"""
-        logging.debug('Loading posts for thread: {0!r}'.format(thread_num))
+        logging.debug('Loading posts for thread: {0!r}'.format(self.thread_num))
         self._thread_res = common.fetch(requests_session=self.req_ses, url=self.url)
         self.time_grabbed = datetime.datetime.utcnow()# Record when we got the thread
         # TODO: Ensure unicode everywhere
         self.html = self._thread_res.content
-        common.write_file(file_path=self.html_filepath, data=html)# TODO: Ensure unicode works with this
-        self.posts = self._split_posts(self.html)
+        common.write_file(file_path=self.html_filepath, data=self.html)# TODO: Ensure unicode works with this
+        self.posts = self._split_posts(thread_num=self.thread_num,
+            html=self.html, time_grabbed=self.time_grabbed)
+        return
 
-    def _split_posts(self, thread_num, html):
+    def _split_posts(self, thread_num, html, time_grabbed):
         """Split page into post fragments and instantiate child Post objects for them"""
         fragments = w_post_extractors.split_thread_into_posts(html)
         for fragment in fragments:
@@ -353,8 +373,6 @@ class WarosuPost():
 def dev():
     """Development test area"""
     logging.warning(u'running dev()')
-
-    # Startup DB stuff
     # Load config file
     config_path = os.path.join(u'config', 'w_classes.yaml')
     config = YAMLConfigWClasses(config_path)
@@ -365,6 +383,25 @@ def dev():
     dl_dir = unicode(config.dl_dir)
     echo_sql = config.echo_sql
 
+    # Startup DB stuff
+    # Setup/start/connect to DB
+    logging.debug(u'Connecting to DB')
+    db_dir, db_filename = os.path.split(db_filepath)
+    if len(db_dir) != 0:# Ensure DB has a dir to be put in
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+    # Start the DB engine
+    engine = sqlalchemy.create_engine(
+        connection_string,# Points SQLAlchemy at a DB
+        echo=echo_sql# Output DB commands to log
+    )
+    # Link table/class mapping to DB engine and make sure tables exist.
+    Base.metadata.bind = engine# Link 'declarative' system to our DB
+    Base.metadata.create_all(checkfirst=True)# Create tables based on classes
+    # Create a session to interact with the DB
+    SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
+    db_ses = SessionClass()
+    # Generate table classes
     FuukaPosts = tables_fuuka.fuuka_posts(Base, board_name)# Creates table class using factory function
 
     # Setup requests session
@@ -373,8 +410,9 @@ def dev():
     # Test grabbing a thread
     board = Board(
         base_url = u'https://warosu.org',
-        board_name = u'tg',
-        req_ses = req_ses
+        board_name = u'g',
+        req_ses = req_ses,
+        dl_dir = dl_dir,
     )
     thread = board.load_thread(68630359)
     thread.insert_new_ghost_posts()
