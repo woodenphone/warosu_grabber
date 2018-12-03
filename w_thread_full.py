@@ -102,88 +102,89 @@ def fuuka_post(fragment, thread_num, thread_url, board_images_path):
 ##    # id decimal(39,0) unsigned not null default '0',
     # num int unsigned not null,
     num, subnum = w_post_extractors.num_subnum(fragment)
-    post_data['num'] = num
-    post_data['subnum'] = subnum
+    post_data[u'num'] = num
+    post_data[u'subnum'] = subnum
 
     # parent int unsigned not null default '0',
-    post_data['parent'] = thread_num# TODO Verify this is correct
+    post_data[u'parent'] = thread_num# TODO Verify this is correct
 
     # timestamp int unsigned not null,
     timestamp = w_post_extractors.timestamp(fragment)
-    post_data['timestamp'] = timestamp
+    post_data[u'timestamp'] = timestamp
 ##    logging.debug(u'timestamp={0!r}'.format(timestamp))
 
     # preview varchar(20),
     # preview_w smallint unsigned not null default '0',
     # preview_h smallint unsigned not null default '0',
     preview, preview_w, preview_h = w_post_extractors.preview_preview_w_preview_h(fragment)
-    post_data['preview'] = preview# Thumbnail filename on disk
-    post_data['preview_w'] = preview_w
-    post_data['preview_h'] = preview_h
+    post_data[u'preview'] = preview# Thumbnail filename on disk
+    post_data[u'preview_w'] = preview_w
+    post_data[u'preview_h'] = preview_h
 
     # media text,
     # media_w smallint unsigned not null default '0',
     # media_h smallint unsigned not null default '0',
     # media_size int unsigned not null default '0',
     media, media_w, media_h, media_size = w_post_extractors.media_media_w_media_h_media_size(fragment)
-    post_data['media'] = media# Original filename
-    post_data['media_w'] = media_w# media_w
-    post_data['media_h'] = media_h# media_h
-    post_data['media_size'] = media_size# media_size (lowered resolution?)TODO Investigate accuracy of given values
+    post_data[u'media'] = media# Original filename
+    post_data[u'media_w'] = media_w# media_w
+    post_data[u'media_h'] = media_h# media_h
+    post_data[u'media_size'] = media_size# media_size (lowered resolution?)TODO Investigate accuracy of given values
 
     # media_hash varchar(25),
     media_hash = w_post_extractors.media_hash(fragment)
-    post_data['media_hash'] = media_hash# Image MD5 hash encoded in base64
+    post_data[u'media_hash'] = media_hash# Image MD5 hash encoded in base64
 ##    logging.debug(u'media_hash={0!r}'.format(media_hash))
 
     # media_filename varchar(20),
     media_filename = w_post_extractors.media_filename(fragment, board_images_path)
-    post_data['media_filename'] = media_filename# Filename on disk
+    post_data[u'media_filename'] = media_filename# Filename on disk
 ##    logging.debug(u'media_filename={0!r}'.format(media_filename))
 
     # spoiler bool not null default '0',
     spoiler = w_post_extractors.spoiler(fragment)
-    post_data['spoiler'] = spoiler# Post was spoilered on 4chan
+    post_data[u'spoiler'] = spoiler# Post was spoilered on 4chan
 ##    logging.debug(u'spoiler={0!r}'.format(spoiler))
 
     # deleted bool not null default '0',
     deleted = w_post_extractors.deleted(fragment)
-    post_data['deleted'] = deleted# Post was deleted on 4chan
+    post_data[u'deleted'] = deleted# Post was deleted on 4chan
 ##    logging.debug(u'deleted={0!r}'.format(deleted))
 
     # capcode enum('N', 'M', 'A', 'G') not null default 'N',
     capcode = w_post_extractors.capcode(fragment)
-    post_data['capcode'] = capcode
+    post_data[u'capcode'] = capcode
 ##    logging.debug(u'capcode={0!r}'.format(capcode))
 
     # email varchar(100),
 ##    email = w_post_Extractors.email(fragment)
+    post_data[u'email'] = u'EMAIL FINDING NOT IMPLIMENTED!'
 
     # name varchar(100),
     name = w_post_extractors.name(fragment)
-    post_data['name'] = name
+    post_data[u'name'] = name
 ##    logging.debug(u'name={0!r}'.format(name))
 
     # trip varchar(25),
     trip = w_post_extractors.trip(fragment)
-    post_data['trip'] = trip
+    post_data[u'trip'] = trip
 ##    logging.debug(u'trip={0!r}'.format(trip))
 
     # title varchar(100),
     title = w_post_extractors.title(fragment)
-    post_data['title'] = title
+    post_data[u'title'] = title
 ##    logging.debug(u'title={0!r}'.format(title))
 
     # comment text,
     comment = w_post_extractors.comment(fragment)
-    post_data['comment'] = comment
+    post_data[u'comment'] = comment
 ##    logging.debug(u'comment={0!r}'.format(comment))
 
 ##    # delpass tinytext,
 
     # sticky bool not null default '0',
     sticky = w_post_extractors.sticky(fragment)
-    post_data['sticky'] = sticky
+    post_data[u'sticky'] = sticky
 ##    logging.debug(u'sticky={0!r}'.format(sticky))
 
     logging.debug(u'post_data={0!r}'.format(post_data))
@@ -464,8 +465,8 @@ def split_file():
     # Tripcode example: https://warosu.org/tg/thread/40312392
     thread_num = 40312392
     thread_url = u'https://warosu.org/tg/thread/40312392'
-    thread_filepath = os.path.join('example_threads', 'warosu.tg.40312392.html')
-    board_images_path = 'data/tg'# No trailing slash
+    thread_filepath = os.path.join(u'example_threads', u'warosu.tg.40312392.html')
+    board_images_path = u'data/tg'# No trailing slash
 
     # Load from file
     file_data = common.read_file(thread_filepath)

@@ -28,7 +28,7 @@ import bs4
 import yaml
 # local
 import common
-import warosu_tables
+import tables_reallysimple
 
 
 Base = declarative_base()# Setup system to keep track of tables and classes
@@ -142,13 +142,13 @@ def convert_list_str_to_int(values):
     return out_list
 
 
-def insert_if_new(db_ses, SimpleThreads, thread_nums):
+def insert_if_new(db_ses, RSThreads, thread_nums):
     # See if thread ID(s) in DB:
     new_threads = []
     for thread_num in thread_nums:
         # Lookup thread_num
-        check_q = db_ses.query(SimpleThreads)\
-            .filter(SimpleThreads.thread_num == thread_num,)
+        check_q = db_ses.query(RSThreads)\
+            .filter(RSThreads.thread_num == thread_num,)
         check_result = check_q.first()
         if check_result:
             # UPDATE
@@ -157,7 +157,7 @@ def insert_if_new(db_ses, SimpleThreads, thread_nums):
         else:
             # INSERT
             logging.debug('Staging thread for insert: {0!r}'.format(thread_num))
-            new_thread = SimpleThreads( thread_num = thread_num )
+            new_thread = RSThreads( thread_num = thread_num )
             new_threads.append(new_thread)# Insert thread_num
     if len(new_threads) > 0:
         logging.debug('Inserting new threads')
@@ -166,26 +166,30 @@ def insert_if_new(db_ses, SimpleThreads, thread_nums):
     return
 
 
-def insert_threads_to_db(db_ses, SimpleThreads, thread_nums):
+def insert_threads_to_db(db_ses, RSThreads, thread_nums):
     new_threads = []
     for thread_num in thread_nums:
-        new_thread = SimpleThreads( thread_num = thread_num )
+        new_thread = RSThreads( thread_num = thread_num )
         new_threads.append(new_thread)
     db_ses.add_all(new_threads)
     db_ses.commit()
     return
 
 
-def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
-    dl_dir, date_from, date_to, step_days=1):
+def scan_board_range(db_ses, RSThreads, req_ses, board_name,
+    dl_dir, date_from, date_to, tlist_out_template, step_days=1):
     logging.debug(u'save_board_range() args={0!r}'.format(locals()))# Record arguments.
+    # Generate output filepath
+    filename = (tlist_out_template.format(l=date_from, h=date_to))
+    thread_nums_dump_path = os.path.join(dl_dir, 'found_threads', filename)
+    logging.debug(u'thread_nums_dump_path={0!r}'.format(thread_nums_dump_path))
     # Iterate over range
     delta = datetime.timedelta(days=step_days)
     working_date = date_from# Initialise at low end
     prev_page_threads = [None]
     all_thread_nums = []
     total_pages = 0
-    while working_date < date_to:
+    while (working_date < date_to):
         # Generate our current date range
         logging.debug(u'working_date={0!r}'.format(working_date))
 ##        fut_date = working_date + weekdelta
@@ -215,8 +219,8 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
             unique_thread_nums = common.uniquify(thread_nums)
             logging.debug(u'unique_thread_nums={0!r}'.format(unique_thread_nums))
             # Store thread numbers to DB
-##            insert_threads_to_db(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_nums=unique_thread_nums)
-            insert_if_new(db_ses=db_ses, SimpleThreads=SimpleThreads, thread_nums=unique_thread_nums)
+##            insert_threads_to_db(db_ses=db_ses, RSThreads=RSThreads, thread_nums=unique_thread_nums)
+            insert_if_new(db_ses=db_ses, RSThreads=RSThreads, thread_nums=unique_thread_nums)
             # Store thread numbers
             all_thread_nums += unique_thread_nums
             logging.debug(u'len(all_thread_nums)={0!r}'.format(len(all_thread_nums)))
@@ -236,15 +240,13 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
     logging.debug(u'total_pages={0!r}'.format(total_pages))
 
     # Save threadIDs to file as a backup
-    filename = ('l{l}.h{h}.txt'.format(l=date_from, h=date_to))
-    thread_nums_dump_path = os.path.join(dl_dir, 'threads', filename)
     logging.debug(u'thread_nums_dump_path={0!r}'.format(thread_nums_dump_path))
-
+    # Ensure dir exists
     dump_dir, dump_filename = os.path.split(thread_nums_dump_path)
-    if len(dump_dir) != 0:# Ensure dir exists
+    if len(dump_dir) != 0:
         if not os.path.exists(dump_dir):
             os.makedirs(dump_dir)
-
+    # Save file
     with open(thread_nums_dump_path, 'a') as df:
         for thread_num_out in all_thread_nums:
             df.write('t{0}\n'.format(thread_num_out))
@@ -262,7 +264,7 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
 ##        logging.debug('Now working on range: {0!r} to {1!r}'.format(date_from, date_to))
 ##        scan_board_range(
 ##            db_ses=db_ses,
-##            SimpleThreads=SimpleThreads,
+##            RSThreads=RSThreads,
 ##            req_ses=req_ses,
 ##            board_name=board_name,
 ##            dl_dir=dl_dir,
@@ -302,7 +304,7 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
 ##    # Setup requests session
 ##    req_ses = requests.Session()
 ##    # Prepare board DB classes/table mappers
-##    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
+##    RSThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
 ##    # Setup/start/connect to DB
 ##    logging.debug(u'Connecting to DB')
 ##    db_dir, db_filename = os.path.split(db_filepath)
@@ -324,7 +326,7 @@ def scan_board_range(db_ses, SimpleThreads, req_ses, board_name,
 ##    # Scan the range
 ##    scan_board_range(
 ##        db_ses=db_ses,
-##        SimpleThreads=SimpleThreads,
+##        RSThreads=RSThreads,
 ##        req_ses=req_ses,
 ##        board_name=board_name,
 ##        dl_dir=dl_dir,
@@ -357,6 +359,7 @@ def from_config():
     date_to = config.date_to
     step_days = int(config.step_days)
     echo_sql = config.echo_sql
+    tlist_out_template = 'l{l}.h{h}.txt'
 
     assert(date_from > datetime.date(2000,1,1))
     assert(date_to > datetime.date(2000,1,1))
@@ -365,7 +368,7 @@ def from_config():
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
-    SimpleThreads = warosu_tables.table_factory_really_simple_threads(Base, board_name)
+    RSThreads = tables_reallysimple.really_simple_threads(Base, board_name)
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
     db_dir, db_filename = os.path.split(db_filepath)
@@ -387,12 +390,13 @@ def from_config():
     # Scan the range
     scan_board_range(
         db_ses=db_ses,
-        SimpleThreads=SimpleThreads,
+        RSThreads=RSThreads,
         req_ses=req_ses,
         board_name=board_name,
         dl_dir=dl_dir,
         date_from = date_from,
         date_to = date_to,
+        tlist_out_template = tlist_out_template,
         step_days=step_days
     )
     # Persist data now that thread has been grabbed

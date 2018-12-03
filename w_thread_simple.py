@@ -28,7 +28,7 @@ import bs4
 import yaml
 # local
 import common
-import warosu_tables
+import tables_simple
 import w_post_extractors
 
 Base = declarative_base()# Setup system to keep track of tables and classes
@@ -39,12 +39,13 @@ class YAMLConfigThreadSimple():
     """Handle reading, writing, and creating YAML config files."""
     def __init__(self, config_path=None):
         # Set default values
-        self.board_name = u'board_shortname'
-        self.db_filepath = u'db/filepath/if.sqlite'
-        self.connection_string = u'engine://sqlalchemy_parameters'
-        self.thread_num = 0
-        self.dl_dir = u'download/filepath/'
+        self.board_name = u'tg'
+        self.db_filepath = u'temp/tg.db'
+        self.connection_string = u'sqlite:///temp/tg.db'
+        self.thread_num = 40312936
+        self.dl_dir = u'temp/dl/tg/'
         self.echo_sql = False
+        self.thread_list_path = u'temp/tg_list.txt'
         if config_path:
             config_dir = os.path.dirname(config_path)
             if len(config_dir) > 0:# Only try to make a dir if ther is a dir to make.
@@ -152,78 +153,109 @@ def simple_save_thread(db_ses, req_ses, SimplePosts, board_name, thread_num, dl_
     return
 
 
-def simple_save_thread_bs(db_ses, req_ses, SimplePosts, board_name, thread_num, dl_dir):
-    """Save the ghost posts in a thread in a very simple manner.
-    Uses bs4, which may be slow"""
-    logging.info(u'Fetching thread: {0!r}'.format(thread_num))
-    # Calculate values
-    thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
-    thread_filename = 'warosu.{bn}.{tn}.html'.format(bn=board_name, tn=thread_num)
-    thread_filepath = os.path.join(dl_dir, u'{0}'.format(board_name), thread_filename)
-    logging.debug(u'thread_url={0!r}'.format(thread_url))
 
-    # Look for all posts for this thread in DB
-    logging.debug('About to look for existing posts for this thread')
-    existing_posts_q = db_ses.query(SimplePosts)\
-        .filter(SimplePosts.thread_num == thread_num,)
-    existing_posts = existing_posts_q.all()
-    logging.debug(u'existing_posts={0!r}'.format(existing_posts))
-    logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
-    # Load thread
-    thread_res = common.fetch( requests_session=req_ses, url=thread_url, )
-    thread_html = thread_res.content
-    # Save for debugging/hoarding
-    logging.debug(u'thread_filepath={0!r}'.format(thread_filepath))
-    common.write_file(# Store page to disk
-        file_path=thread_filepath,
-        data=thread_res.content
-    )
-    # Parse thread (we only care about ghost posts)
-    soup = bs4.BeautifulSoup(thread_html, u'html.parser')
-    # Find posts
-    posts = soup.find_all(name=u'table', attrs={u'itemtype':'http://schema.org/Comment',})# TODO WARNING This may miss op!
-    logging.warning('The current method of post finding may miss OP!')
-    logging.debug(u'len(posts)={0!r}'.format(len(posts)))
-    for post in posts:# Process each post
-##        logging.debug(u'post={0!r}'.format(post))
-        # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
-        delete_element = post.find_all('input', {'name':'delete'})
-        delete_element_string = unicode(delete_element)
-        num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', delete_element_string)
-        num_string = num_search.group(1)
-        subnum_string = num_search.group(2)
-        num = int(num_string)
-        subnum = int(subnum_string)
-        # Detect if ghost post
-        is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
-        if (not is_ghost):# Skip post if not ghost
-            logging.debug(u'Skipping regular reply: num={0!r}, subnum={1!r}'.format(num, subnum))
-            continue
-        logging.debug(u'Found ghost reply: num={0!r}, subnum={1!r}'.format(num, subnum))
-        post_html = unicode(post)# If we can't extract original values, maybe we can just store the whole post?
-        # Check if post is already in DB
-        post_is_in_db = is_post_in_results(results=existing_posts, thread_num=thread_num,
-             num=num, subnum=subnum)
-        if (post_is_in_db):
-            logging.debug(u'Post {0}.{1} in thread {2} already saved'.format(num ,subnum, thread_num))
-        else:
-            logging.debug('About to insert ghost post')
-##            logging.debug(u'SimplePosts={0!r}'.format(SimplePosts))
-##            logging.debug(u'num={0!r}'.format(num))
-##            logging.debug(u'subnum={0!r}'.format(subnum))
-##            logging.debug(u'thread_num={0!r}'.format(thread_num))
-##            logging.debug(u'post_html={0!r}'.format(post_html))
-            # Add post to DB
-            new_simplepost = SimplePosts(
-                num = num,
-                subnum = subnum,
-                thread_num = thread_num,
-                post_html = post_html,
+
+def save_threads(db_ses, req_ses, SimplePosts, board_name, dl_dir, thread_list_path):
+    logging.debug(u'save_threads() locals()={0!r}'.format(locals()))# Record arguments
+    logging.info('Saving threads from list file:{0!r}'.format(thread_list_path))
+    with open(thread_list_path, 'ru') as list_f:
+        for line in list_f:
+            logging.debug(u'line={0!r}'.format(line))
+            # Decode line
+            if line[0] != 't':# Only accept lines marked as threads
+                continue
+            wrk_num = line[1:]# Discard initial 't'
+            thread_num = wrk_num.strip()# Discard trailing whitespace
+            logging.debug(u'thread_num={0!r}'.format(thread_num))
+            # Save a thread
+            simple_save_thread(
+                db_ses=session,
+                req_ses=req_ses,
+                SimplePosts=SimplePosts,
+                board_name=board_name,
+                thread_num=thread_num,
+                dl_dir=dl_dir
             )
-            db_ses.add(new_simplepost)
-            logging.info(u'Inserted a ghost post into SimplePosts')
-    logging.info(u'Fetched thread: {0!r}'.format(thread_num))
+            continue
+        logging.info('Processed all lines in file:{0!r}'.format(thread_list_path))
+    logging.info('Finished saving threads')
     return
+
+
+
+
+##def simple_save_thread_bs(db_ses, req_ses, SimplePosts, board_name, thread_num, dl_dir):
+##    """Save the ghost posts in a thread in a very simple manner.
+##    Uses bs4, which may be slow"""
+##    logging.info(u'Fetching thread: {0!r}'.format(thread_num))
+##    # Calculate values
+##    thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
+##    thread_filename = 'warosu.{bn}.{tn}.html'.format(bn=board_name, tn=thread_num)
+##    thread_filepath = os.path.join(dl_dir, u'{0}'.format(board_name), thread_filename)
+##    logging.debug(u'thread_url={0!r}'.format(thread_url))
+##
+##    # Look for all posts for this thread in DB
+##    logging.debug('About to look for existing posts for this thread')
+##    existing_posts_q = db_ses.query(SimplePosts)\
+##        .filter(SimplePosts.thread_num == thread_num,)
+##    existing_posts = existing_posts_q.all()
+##    logging.debug(u'existing_posts={0!r}'.format(existing_posts))
+##    logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
+##    # Load thread
+##    thread_res = common.fetch( requests_session=req_ses, url=thread_url, )
+##    thread_html = thread_res.content
+##    # Save for debugging/hoarding
+##    logging.debug(u'thread_filepath={0!r}'.format(thread_filepath))
+##    common.write_file(# Store page to disk
+##        file_path=thread_filepath,
+##        data=thread_res.content
+##    )
+##    # Parse thread (we only care about ghost posts)
+##    soup = bs4.BeautifulSoup(thread_html, u'html.parser')
+##    # Find posts
+##    posts = soup.find_all(name=u'table', attrs={u'itemtype':'http://schema.org/Comment',})# TODO WARNING This may miss op!
+##    logging.warning('The current method of post finding may miss OP!')
+##    logging.debug(u'len(posts)={0!r}'.format(len(posts)))
+##    for post in posts:# Process each post
+####        logging.debug(u'post={0!r}'.format(post))
+##        # Get post num and subnum (Num is post ID, subnum is ghost ID thing)
+##        delete_element = post.find_all('input', {'name':'delete'})
+##        delete_element_string = unicode(delete_element)
+##        num_search = re.search(u'<input name="delete" type="checkbox" value="(\d+),(\d+)', delete_element_string)
+##        num_string = num_search.group(1)
+##        subnum_string = num_search.group(2)
+##        num = int(num_string)
+##        subnum = int(subnum_string)
+##        # Detect if ghost post
+##        is_ghost = (subnum != 0)# subnum is 0 for regular replies, positive for ghost replies
+##        if (not is_ghost):# Skip post if not ghost
+##            logging.debug(u'Skipping regular reply: num={0!r}, subnum={1!r}'.format(num, subnum))
+##            continue
+##        logging.debug(u'Found ghost reply: num={0!r}, subnum={1!r}'.format(num, subnum))
+##        post_html = unicode(post)# If we can't extract original values, maybe we can just store the whole post?
+##        # Check if post is already in DB
+##        post_is_in_db = is_post_in_results(results=existing_posts, thread_num=thread_num,
+##             num=num, subnum=subnum)
+##        if (post_is_in_db):
+##            logging.debug(u'Post {0}.{1} in thread {2} already saved'.format(num ,subnum, thread_num))
+##        else:
+##            logging.debug('About to insert ghost post')
+####            logging.debug(u'SimplePosts={0!r}'.format(SimplePosts))
+####            logging.debug(u'num={0!r}'.format(num))
+####            logging.debug(u'subnum={0!r}'.format(subnum))
+####            logging.debug(u'thread_num={0!r}'.format(thread_num))
+####            logging.debug(u'post_html={0!r}'.format(post_html))
+##            # Add post to DB
+##            new_simplepost = SimplePosts(
+##                num = num,
+##                subnum = subnum,
+##                thread_num = thread_num,
+##                post_html = post_html,
+##            )
+##            db_ses.add(new_simplepost)
+##            logging.info(u'Inserted a ghost post into SimplePosts')
+##    logging.info(u'Fetched thread: {0!r}'.format(thread_num))
+##    return
 
 
 
@@ -298,11 +330,12 @@ def from_config():
     thread_num = int(config.thread_num)# Temporary
     dl_dir = unicode(config.dl_dir)
     echo_sql = bool(config.echo_sql)
+    thread_list_path = unicode(config.thread_list_path)
 
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
-    SimplePosts = warosu_tables.table_factory_simple_posts(Base, board_name)
+    SimplePosts = tables_simple.simple_posts(Base, board_name)
 
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
@@ -323,15 +356,26 @@ def from_config():
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     session = SessionClass()
 
-    # Save a thread
-    simple_save_thread(
-        db_ses=session,
-        req_ses=req_ses,
-        SimplePosts=SimplePosts,
-        board_name=board_name,
-        thread_num=thread_num,
-        dl_dir=dl_dir
+
+    save_threads(
+    db_ses=db_ses,
+    req_ses=req_ses,
+    SimplePosts=SimplePosts,
+    board_name=board_name,
+    dl_dir=dl_dir,
+    thread_list_path=thread_list_path
     )
+
+
+##    # Save a thread
+##    simple_save_thread(
+##        db_ses=session,
+##        req_ses=req_ses,
+##        SimplePosts=SimplePosts,
+##        board_name=board_name,
+##        thread_num=thread_num,
+##        dl_dir=dl_dir
+##    )
 
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')

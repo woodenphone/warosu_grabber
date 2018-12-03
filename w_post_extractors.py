@@ -281,7 +281,7 @@ def comment(fragment):
     comment: Post text"""
     soup = bs4.BeautifulSoup(fragment, u'html.parser')# TODO Maybe find more efficient way to grab this value than bs4?
     comment_element = soup.find(name=u'p', attrs={u'itemprop':'text',})
-    comment = str(comment_element)
+    comment = unicode(comment_element)
     return comment
 
 

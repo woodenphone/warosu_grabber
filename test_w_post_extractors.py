@@ -31,7 +31,7 @@ import w_thread_Full
 
 
 
-class TestTitle(unittest.TestCase):
+class TestTitle(unittest.TestCase):# TODO
     def test_empty_string(self):
         test_value = u''
         expected_result = u''
@@ -40,7 +40,7 @@ class TestTitle(unittest.TestCase):
 
 
 
-class TestWholeThread_40312936(unittest.TestCase):
+class TestWholeThread_40312936(unittest.TestCase):# TODO
     """Ghost post example: https://warosu.org/tg/thread/40312936"""
     def __init__(self):
         self.thread_num = 40312936
