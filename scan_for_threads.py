@@ -417,7 +417,7 @@ def main():
 
 
 if __name__ == '__main__':
-    common.setup_logging(os.path.join("debug", "grab_thread.log.txt"))# Setup logging
+    common.setup_logging(os.path.join("debug", "scan_for_threads.log.txt"))# Setup logging
     try:
         main()
     # Log exceptions

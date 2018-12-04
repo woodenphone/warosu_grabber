@@ -27,7 +27,7 @@ from sqlalchemy.ext.declarative import declarative_base
 import yaml
 # local
 import common
-import w_post_extractors# Post parsing functions
+import thread_parsers# Post parsing functions
 import tables_fuuka# Table class factories for Fuuka-style DB
 
 
@@ -81,36 +81,6 @@ class YAMLConfigWClasses():
                 default_flow_style=False)# Output as multiple lines
         return
 
-
-##class DBThread():
-##    """The board as the DB sees it"""
-##    def __init__(self, db_ses, thread_num, FuukaPosts):
-##        self.db_ses=db_ses
-##        self.thread_num = thread_num
-##        self.post_rows = None
-##        self.post_nums = {}
-##        return
-##
-##    def lookup_posts(self, db_ses):
-##        # Look for all posts for this thread in DB
-##        logging.debug('About to look for existing posts for this thread')
-##        existing_posts_q = db_ses.query(FuukaPosts)\
-##            .filter(FuukaPosts.parent == thread_num,)# TODO Confirm parent is always == thread_num
-##        existing_post_rows = existing_posts_q.all()
-##        logging.debug(u'existing_post_rows={0!r}'.format(existing_post_rows))
-##        logging.debug(u'len(existing_post_rows)={0!r}'.format(len(existing_post_rows)))
-##        for existing_post_row in existing_post_rows:
-##            post_num = existing_post_row.num
-##            self.post_nums[post_num] = 'has'
-##        return len(existing_posts)
-##
-##    def insert_post(self, post, FuukaPosts):
-##        db_insert(self, db_ses, FuukaPosts)
-##        return
-##
-##    def insert_new_ghost_posts(self):
-##        for
-##        return
 
 
 class Board():
@@ -193,7 +163,7 @@ class Thread():
     def _split_posts(self, thread_num, html, time_grabbed, board_images_path):
         """Split page into post fragments and instantiate child Post objects for them"""
         # Split poage into posts
-        fragments = w_post_extractors.split_thread_into_posts(html)
+        fragments = thread_parsers.split_thread_into_posts(html)
         for fragment in fragments:
             # Parse post
             new_post = WarosuPost(thread_num=thread_num, board_images_path=board_images_path, html=fragment, time_grabbed=time_grabbed)
@@ -315,44 +285,44 @@ class WarosuPost():
 ##        # doc_id int unsigned not null auto_increment,# Cannot be retrieved
 ##        # id decimal(39,0) unsigned not null default '0',# Cannot be retrieved
         # num int unsigned not null,
-        self.num, self.subnum = w_post_extractors.num_subnum(html)
+        self.num, self.subnum = thread_parsers.num_subnum(html)
         # parent int unsigned not null default '0',
         self.parent = self.thread_num
         # timestamp int unsigned not null,
-        self.timestamp = w_post_extractors.timestamp(html)
+        self.timestamp = thread_parsers.timestamp(html)
         # preview varchar(20),
         # preview_w smallint unsigned not null default '0',
         # preview_h smallint unsigned not null default '0',
-        self.preview, self.preview_w, self.preview_h = w_post_extractors.preview_preview_w_preview_h(html)
+        self.preview, self.preview_w, self.preview_h = thread_parsers.preview_preview_w_preview_h(html)
         # media text,
         # media_w smallint unsigned not null default '0',
         # media_h smallint unsigned not null default '0',
         # media_size int unsigned not null default '0',
-        self.media, self.media_w, self.media_h, self.media_size = w_post_extractors.media_media_w_media_h_media_size(html)
+        self.media, self.media_w, self.media_h, self.media_size = thread_parsers.media_media_w_media_h_media_size(html)
         # media_hash varchar(25),
-        self.media_hash = w_post_extractors.media_hash(html)
+        self.media_hash = thread_parsers.media_hash(html)
         # media_filename varchar(20),
-        self.media_filename = w_post_extractors.media_filename(html, board_images_path)
+        self.media_filename = thread_parsers.media_filename(html, board_images_path)
         # spoiler bool not null default '0',
-        self.spoiler = w_post_extractors.spoiler(html)
+        self.spoiler = thread_parsers.spoiler(html)
         # deleted bool not null default '0',
-        self.deleted = w_post_extractors.deleted(html)
+        self.deleted = thread_parsers.deleted(html)
         # capcode enum('N', 'M', 'A', 'G') not null default 'N',
-        self.capcode = w_post_extractors.capcode(html)
+        self.capcode = thread_parsers.capcode(html)
         # email varchar(100),# Cannot be retrieved
-    ##    email = w_post_Extractors.email(html)
+    ##    email = thread_parsers.email(html)
         self.email = u'EMAIL FINDING NOT IMPLIMENTED!'
         # name varchar(100),
-        self.name = w_post_extractors.name(html)
+        self.name = thread_parsers.name(html)
         # trip varchar(25),
-        self.trip = w_post_extractors.trip(html)
+        self.trip = thread_parsers.trip(html)
         # title varchar(100),
-        self.title = w_post_extractors.title(html)
+        self.title = thread_parsers.title(html)
         # comment text,
-        self.comment = w_post_extractors.comment(html)
+        self.comment = thread_parsers.comment(html)
 ##        # delpass tinytext,# Cannot be retrieved
         # sticky bool not null default '0',
-        self.sticky = w_post_extractors.sticky(html)
+        self.sticky = thread_parsers.sticky(html)
         # Added-on values
         logging.debug(u'self.subnum={0!r}'.format(self.subnum))
         self.is_ghost = (self.subnum != 0)# Ghost posts have a subnum other than zero
@@ -390,18 +360,6 @@ class WarosuPost():
 
 
 
-
-### Fuuka does not use a seperate images table
-##class Image():
-##    """An image from Warosu"""
-##    def __init__(self):
-##        self.thread = None
-##        self.num = None
-
-
-
-
-
 def dev():
     """Development test area"""
     logging.warning(u'running dev()')
@@ -433,6 +391,7 @@ def dev():
     # Create a session to interact with the DB
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
+
     # Generate table classes
     FuukaPosts = tables_fuuka.fuuka_posts(Base, board_name)# Creates table class using factory function
     # Ensure tables exist

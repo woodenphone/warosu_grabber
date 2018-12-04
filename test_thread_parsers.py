@@ -16,16 +16,7 @@ import unittest
 # Remote libraries
 import bs4
 # local
-import w_post_extractors
-import w_thread_full
-
-
-
-
-
-
-
-
+import thread_parsers
 
 
 
@@ -35,7 +26,7 @@ import w_thread_full
 ##    def test_empty_string(self):
 ##        test_value = u''
 ##        expected_result = u''
-##        result = w_post_extractors.title(test_value)
+##        result = thread_parsers.title(test_value)
 ##        self.assertEqual(result, expected_result)
 
 
@@ -50,12 +41,12 @@ class TestWholeThread_40312936(unittest.TestCase):# TODO
         with open(self.thread_filepath, 'r') as f:
             file_data = f.read()
         self.thread_html = file_data.decode('utf8')
-        self.post_fragments = w_post_extractors.split_thread_into_posts(html=self.thread_html)
+        self.post_fragments = thread_parsers.split_thread_into_posts(html=self.thread_html)
         return
 
     def test_ghost_post_40319937_1(self):
         fragment = self.post_fragments[22]
-        num, subnum = w_post_extractors.num_subnum(fragment)
+        num, subnum = thread_parsers.num_subnum(fragment)
         self.assertEqual(num, 40319937)
         self.assertEqual(subnum, 1)
 

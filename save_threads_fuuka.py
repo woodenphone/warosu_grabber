@@ -24,9 +24,9 @@ import yaml
 # local
 import common# Utility & common functions
 import tables_fuuka# Table class factories for Fuuka-style DB
-import w_thread_full# Thread parsing
+import parse_thread_fuuka# Thread parsing
 import tables_reallysimple
-import tables_asagi
+
 
 
 
@@ -78,6 +78,7 @@ class YAMLConfigSaveThreads():
         return
 
 
+
 def is_post_in_results(results, parent, num, subnum):
     """Check if the specified post is in the results rows.
     If it is, return that row.
@@ -108,7 +109,7 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num, FuukaPosts):# TOD
     board_images_path = u'data/{bn}'.format(bn=board_name)# Used for HTML parsing. No trailing slash.
     # Parse thread HTML
     logging.debug(u'Parsing posts for thread: {0!r}'.format(thread_url))
-    thread = w_thread_full.parse_thread(
+    thread = parse_thread_fuuka.parse_thread(
         html=html,
         thread_num=thread_num,
         thread_url=thread_url,
@@ -201,23 +202,9 @@ def save_threads_fuuka(db_ses, req_ses, board_name, thread_list_path, FuukaPosts
     return
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 def from_config():# TODO
     logging.info(u'Running from_config()')
+
     # Load config file
     config_path = os.path.join(u'config', 'save_threads.yaml')
     config = YAMLConfigSaveThreads(config_path)
@@ -235,15 +222,8 @@ def from_config():# TODO
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
     RSThreads = tables_reallysimple.really_simple_threads(Base, board_name)# Creates table class using factory function
-    if (db_style == 'fuuka'):
-        # Fuuka-style DB
-        FuukaPosts = tables_fuuka.fuuka_posts(Base, board_name)# Creates table class using factory function
-
-    elif (db_style == 'asagi'):
-        # Asagi/Foolfuuka-style DB
-        FFThreads = foolfuuka_threads(Base, board_name)
-        FFPosts = foolfuuka_posts(Base, board_name)
-        FFImage = foolfuuka_images(Base, board_name)
+    # Fuuka-style DB
+    FuukaPosts = tables_fuuka.fuuka_posts(Base, board_name)# Creates table class using factory function
 
     # Setup/start/connect to DB
     logging.debug(u'Connecting to DB')
@@ -262,33 +242,29 @@ def from_config():# TODO
     # Create a session to interact with the DB
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
-    if (db_style == 'fuuka'):
-        # Fuuka-style DB
-        # Test saving one thread
-        save_thread_fuuka(
-            req_ses=req_ses,
-            db_ses=db_ses,
-            board_name=board_name,
-            thread_num='40312936',
-            FuukaPosts=FuukaPosts
-        )
-        # Test saving multiple threads
-        save_threads_fuuka(
-            db_ses,
-            req_ses,
-            board_name,
-            thread_list_path,
-            FuukaPosts
-        )
 
-    elif (db_style == 'asagi'):
-        # Asagi/Foolfuuka-style DB
-        pass
+    # Test saving one thread
+    save_thread_fuuka(
+        req_ses=req_ses,
+        db_ses=db_ses,
+        board_name=board_name,
+        thread_num='40312936',
+        FuukaPosts=FuukaPosts
+    )
 
+    # Test saving multiple threads
+    save_threads_fuuka(
+        db_ses,
+        req_ses,
+        board_name,
+        thread_list_path,
+        FuukaPosts
+    )
 
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
     db_ses.commit()
+
     # Gracefully disconnect from DB
     logging.info(u'Ending DB session')
     db_ses.close()# Release connection back to pool.
@@ -308,7 +284,7 @@ def main():
 
 
 if __name__ == '__main__':
-    common.setup_logging(os.path.join("debug", "save_threads.log.txt"))# Setup logging
+    common.setup_logging(os.path.join("debug", "save_threads_fuuka.log.txt"))# Setup logging
     try:
         main()
     # Log exceptions
