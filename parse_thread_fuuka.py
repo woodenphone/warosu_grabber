@@ -163,6 +163,9 @@ def parse_thread(html, thread_num, thread_url, board_images_path, ghost_only=Fal
     posts = []
     # Split thread into post HTML fragments
     fragments = thread_parsers.split_thread_into_posts(html)
+    if fragments == None:
+        logging.error('Could not parse thread: {0!r}'.format(thread_url))
+        return None
     # Process each fragment of the page
     for fragment in fragments:
         if (# Skip non-ghost post in ghost-only mode.

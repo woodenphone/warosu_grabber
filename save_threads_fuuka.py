@@ -97,15 +97,19 @@ def is_post_in_results(results, parent, num, subnum):
 
 
 def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
-    FuukaPosts, ghost_only=False,):
+    html_path, FuukaPosts, ghost_only=False,):
     """Save a thread into a fuuka-style table."""
     # Generate thread URL
     # e.g. https://warosu.org/tg/thread/40312936
-    thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
+    thread_url = u'https://warosu.org/{bn}/thread/S{tn}'.format(bn=board_name, tn=thread_num)
     # Load thread HTML
     logging.debug(u'Loading HTML for thread: {0!r}'.format(thread_url))
     thread_res = common.fetch(requests_session=req_ses, url=thread_url)
     html = thread_res.content.decode('utf8')# We want to be working on unicode objects
+    filename = 't{t}.htm'.format(t=thread_num)
+    file_path = os.path.join(html_path, filename)
+##    common.write_file(file_path=file_path, data=thread_res.content)
+    common.write_unicode_file(file_path=file_path, data=html)
 
     # Parse thread HTML
     logging.debug(u'Parsing posts for thread: {0!r}'.format(thread_url))
@@ -117,6 +121,9 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
         board_images_path=board_images_path,
         ghost_only=ghost_only,
     )
+    if (thread == None):
+        logging.error('Could not save thread: {0!r}'.format(thread_url))
+        return None
 
     # Look for all posts for this thread in DB
     logging.debug('About to look for existing posts for this thread')
@@ -127,14 +134,14 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
     logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
 
     # Insert posts that have not already been saved
-    logging.debug(u'Inserting posts {0!r} for thread: {1!r}'.format(len(thread[u'ghost_posts']), thread_url))
+    logging.debug(u'Inserting posts {0!r} for thread: {1!r}'.format(len(thread[u'posts']), thread_url))
     post_rows = []
     for post in thread[u'posts']:
         # Skip existing posts
         if (
             is_post_in_results(
                 results=existing_posts,
-                thread_num=thread_num,
+                parent=thread_num,
                 num=post[u'num'],
                 subnum=post[u'subnum']
             )):
@@ -178,7 +185,7 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
 
 
 def save_threads_file(db_ses, req_ses, board_name, thread_list_path,
-    FuukaPosts, ghost_only=False):
+    html_path, FuukaPosts, ghost_only=False):
     """Save multiple threads into fuuka-style DB.
     Ghost-post only."""
     logging.debug(u'save_threads_file() locals()={0!r}'.format(locals()))# Record arguments
@@ -200,6 +207,7 @@ def save_threads_file(db_ses, req_ses, board_name, thread_list_path,
                 db_ses=db_ses,
                 board_name=board_name,
                 thread_num=thread_num,
+                html_path=html_path,
                 FuukaPosts=FuukaPosts,
                 ghost_only=ghost_only,
             )
@@ -210,7 +218,7 @@ def save_threads_file(db_ses, req_ses, board_name, thread_list_path,
 
 
 def save_threads_rsthreads(db_ses, req_ses, board_name, thread_list_path,
-    FuukaPosts, RSThreads, ghost_only=False, max_threads=None):
+    html_path, FuukaPosts, RSThreads, ghost_only=False, max_threads=None):
     """Save multiple threads into fuuka-style DB."""
     logging.debug(u'save_threads_rsthreads() locals()={0!r}'.format(locals()))# Record arguments
     logging.info(u'Saving threads from RSThreads DB table')
@@ -225,7 +233,7 @@ def save_threads_rsthreads(db_ses, req_ses, board_name, thread_list_path,
                 logging.info('Maximum number of rows reached, stopping.')
                 break
         thread_num = thread_row.thread_num
-        logging.debug(u'Processing thead {0!r}: {1!r}'.format(thread_num))
+        logging.debug(u'Processing thread {0!r}: {1!r}'.format(row_counter, thread_num))
 
         # Save a thread
         save_thread_fuuka(
@@ -233,6 +241,7 @@ def save_threads_rsthreads(db_ses, req_ses, board_name, thread_list_path,
             db_ses=db_ses,
             board_name=board_name,
             thread_num=thread_num,
+            html_path=html_path,
             FuukaPosts=FuukaPosts,
             ghost_only=ghost_only,
         )
@@ -267,7 +276,7 @@ def from_config():# TODO
 
     # Manually-set values # TODO REMOVE THIS
     thread_list_path = os.path.join('temp', 'tg.threadslist.txt')
-
+    html_path = os.path.join('temp', 'tg')
     # Setup requests session
     req_ses = requests.Session()
     # Prepare board DB classes/table mappers
@@ -316,6 +325,7 @@ def from_config():# TODO
         req_ses,
         board_name,
         thread_list_path,
+        html_path,
         FuukaPosts,
         RSThreads,
         ghost_only=False,

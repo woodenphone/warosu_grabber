@@ -85,7 +85,7 @@ def search_for_threads(req_ses, board_name, dl_dir,
     logging.debug(u'search_for_threads() args={0!r}'.format(locals()))# Record arguments.
     # Generate url for search page
     current_page_template = (# Search for all threads
-        u'https://warosu.org/g/?task=search2'
+        u'https://warosu.org/{board_name}/?task=search2'
         u'&ghost=yes'# Include ghostposts in query
         u'&search_text='
         u'&search_subject='
@@ -105,7 +105,8 @@ def search_for_threads(req_ses, board_name, dl_dir,
         u'&search_res=op'# Only show thread OP in results
     )
     current_page_url = current_page_template.format(
-        date_from=date_from, date_to=date_to, offset=offset)
+        board_name=board_name, date_from=date_from,
+        date_to=date_to, offset=offset)
     logging.debug(u'current_page_url={0!r}'.format(current_page_url))
     # Load page
     page_res = common.fetch(requests_session=req_ses, url=current_page_url)
@@ -152,15 +153,15 @@ def insert_if_new(db_ses, RSThreads, thread_nums):
         check_result = check_q.first()
         if check_result:
             # UPDATE
-            logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
+            #logging.debug('Thread already in DB, not inserting: {0!r}'.format(thread_num))
             continue
         else:
             # INSERT
-            logging.debug('Staging thread for insert: {0!r}'.format(thread_num))
+            #logging.debug('Staging thread for insert: {0!r}'.format(thread_num))
             new_thread = RSThreads( thread_num = thread_num )
             new_threads.append(new_thread)# Insert thread_num
     if len(new_threads) > 0:
-        logging.debug('Inserting new threads')
+        logging.debug('Inserting {0!r} new threads'.format(len(new_threads)))
         db_ses.add_all(new_threads)
         db_ses.commit()
     return
@@ -210,7 +211,7 @@ def scan_board_range(db_ses, RSThreads, req_ses, board_name,
                 offset=offset
             )
             # Extract thread numbers
-            thread_num_strings = re.findall('/\w+/thread/S?(\d+)', res.content)
+            thread_num_strings = re.findall('href="/\w+/thread/S?(\d+)">View', res.content)
             logging.debug(u'thread_num_strings={0!r}'.format(thread_num_strings))
             logging.debug(u'len(thread_num_strings)={0!r}'.format(len(thread_num_strings)))
             thread_nums = convert_list_str_to_int(thread_num_strings)
@@ -361,9 +362,9 @@ def from_config():
     echo_sql = config.echo_sql
     tlist_out_template = 'l{l}.h{h}.txt'
 
+    # Sanity checks
     assert(date_from > datetime.date(2000,1,1))
     assert(date_to > datetime.date(2000,1,1))
-
 
     # Setup requests session
     req_ses = requests.Session()
@@ -399,13 +400,16 @@ def from_config():
         tlist_out_template = tlist_out_template,
         step_days=step_days
     )
+
     # Persist data now that thread has been grabbed
     logging.info(u'Committing')
     db_ses.commit()
+
     # Gracefully disconnect from DB
     logging.info(u'Ending DB session')
     db_ses.close()# Release connection back to pool.
     engine.dispose()# Close all connections.
+
     logging.info(u'Exiting from_config()')
     return
 

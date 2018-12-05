@@ -306,6 +306,9 @@ def split_thread_into_posts(html):# TODO: Write tests
     3rd line of next post: <td class="reply" id="p40313137">"""
     # Select only the OP
     op_fragment_search = re.search('(<div id="p\d+" itemscope itemtype="http://schema.org/DiscussionForumPosting">(?:.|\n|\t)+?)<table itemscope itemtype="http://schema.org/Comment"><tr>', html)
+    if not op_fragment_search:
+        logging.error('Could not find OP! (Is thread empty?)')
+        return None
     op_fragment = op_fragment_search.group(1)
     # (?:.|\n|\t) is to match any character, because some regex engines do not do DOTALL functionality
     reply_fragments = re.findall('(<table itemscope itemtype="http://schema.org/Comment">(?:.|\n|\t)+?</table>)', html)
