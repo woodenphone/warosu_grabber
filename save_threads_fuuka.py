@@ -121,7 +121,7 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
         board_images_path=board_images_path,
         ghost_only=ghost_only,
     )
-    if (thread == None):
+    if (thread == None):# Handle parsing errors (Hint: Try checking the URL, especially that the board is correct.)
         logging.error('Could not save thread: {0!r}'.format(thread_url))
         return None
 
