@@ -96,25 +96,28 @@ def is_post_in_results(results, parent, num, subnum):
     return None
 
 
-def save_thread_fuuka(req_ses, db_ses, board_name, thread_num, FuukaPosts):# TODO
-    """Save a thread into a fuuka-style table.
-    Only cares about ghost posts."""
+def save_thread_fuuka(req_ses, db_ses, board_name, thread_num,
+    FuukaPosts, ghost_only=False,):
+    """Save a thread into a fuuka-style table."""
     # Generate thread URL
     # e.g. https://warosu.org/tg/thread/40312936
     thread_url = u'https://warosu.org/{bn}/thread/{tn}'.format(bn=board_name, tn=thread_num)
     # Load thread HTML
     logging.debug(u'Loading HTML for thread: {0!r}'.format(thread_url))
     thread_res = common.fetch(requests_session=req_ses, url=thread_url)
-    html = thread_res.content.decode('utf8')
-    board_images_path = u'data/{bn}'.format(bn=board_name)# Used for HTML parsing. No trailing slash.
+    html = thread_res.content.decode('utf8')# We want to be working on unicode objects
+
     # Parse thread HTML
     logging.debug(u'Parsing posts for thread: {0!r}'.format(thread_url))
+    board_images_path = u'data/{bn}'.format(bn=board_name)# Used for HTML parsing. No trailing slash.
     thread = parse_thread_fuuka.parse_thread(
         html=html,
         thread_num=thread_num,
         thread_url=thread_url,
         board_images_path=board_images_path,
+        ghost_only=ghost_only,
     )
+
     # Look for all posts for this thread in DB
     logging.debug('About to look for existing posts for this thread')
     existing_posts_q = db_ses.query(FuukaPosts)\
@@ -122,45 +125,47 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num, FuukaPosts):# TOD
     existing_posts = existing_posts_q.all()
     logging.debug(u'existing_posts={0!r}'.format(existing_posts))
     logging.debug(u'len(existing_posts)={0!r}'.format(len(existing_posts)))
+
     # Insert posts that have not already been saved
     logging.debug(u'Inserting posts {0!r} for thread: {1!r}'.format(len(thread[u'ghost_posts']), thread_url))
     post_rows = []
-    for gp in thread[u'ghost_posts']:
+    for post in thread[u'posts']:
         # Skip existing posts
         if (
             is_post_in_results(
                 results=existing_posts,
                 thread_num=thread_num,
-                num=gp[u'num'],
-                subnum=gp[u'subnum']
+                num=post[u'num'],
+                subnum=post[u'subnum']
             )):
             continue# Post already in DB
+
         # Stage post
-        logging.info(u'gp={0!r}'.format(gp))
+        logging.info(u'post={0!r}'.format(post))
         new_row = FuukaPosts(
-            num = gp[u'num'],
-            subnum = gp[u'subnum'],
-            parent = gp[u'parent'],
-            timestamp = gp[u'timestamp'],
-            preview = gp[u'preview'],
-            preview_w = gp[u'preview_w'],
-            preview_h = gp[u'preview_h'],
-            media = gp[u'media'],
-            media_w = gp[u'media_w'],
-            media_h = gp[u'media_h'],
-            media_size = gp[u'media_size'],
-            media_hash = gp[u'media_hash'],
-            media_filename = gp[u'media_filename'],
-            spoiler = gp[u'spoiler'],
-            deleted = gp[u'deleted'],
-            capcode = gp[u'capcode'],
-            email = gp[u'email'],
-            name = gp[u'name'],
-            trip = gp[u'trip'],
-            title = gp[u'title'],
-            comment = gp[u'comment'],
+            num = post[u'num'],
+            subnum = post[u'subnum'],
+            parent = post[u'parent'],
+            timestamp = post[u'timestamp'],
+            preview = post[u'preview'],
+            preview_w = post[u'preview_w'],
+            preview_h = post[u'preview_h'],
+            media = post[u'media'],
+            media_w = post[u'media_w'],
+            media_h = post[u'media_h'],
+            media_size = post[u'media_size'],
+            media_hash = post[u'media_hash'],
+            media_filename = post[u'media_filename'],
+            spoiler = post[u'spoiler'],
+            deleted = post[u'deleted'],
+            capcode = post[u'capcode'],
+            email = post[u'email'],
+            name = post[u'name'],
+            trip = post[u'trip'],
+            title = post[u'title'],
+            comment = post[u'comment'],
             delpass=None,# Can't be grabbed, server-side only value
-            sticky = gp[u'sticky'],
+            sticky = post[u'sticky'],
             )
         post_rows.append(new_row)
     if post_rows:
@@ -172,11 +177,12 @@ def save_thread_fuuka(req_ses, db_ses, board_name, thread_num, FuukaPosts):# TOD
 
 
 
-def save_threads_fuuka(db_ses, req_ses, board_name, thread_list_path, FuukaPosts):
+def save_threads_file(db_ses, req_ses, board_name, thread_list_path,
+    FuukaPosts, ghost_only=False):
     """Save multiple threads into fuuka-style DB.
     Ghost-post only."""
-    logging.debug(u'save_threads_fuuka() locals()={0!r}'.format(locals()))# Record arguments
-    logging.info('Saving threads from list file:{0!r}'.format(thread_list_path))
+    logging.debug(u'save_threads_file() locals()={0!r}'.format(locals()))# Record arguments
+    logging.info(u'Saving threads from list file:{0!r}'.format(thread_list_path))
     lc = 0
     with open(thread_list_path, 'r') as list_f:
         for line in list_f:
@@ -194,11 +200,55 @@ def save_threads_fuuka(db_ses, req_ses, board_name, thread_list_path, FuukaPosts
                 db_ses=db_ses,
                 board_name=board_name,
                 thread_num=thread_num,
-                FuukaPosts=FuukaPosts
+                FuukaPosts=FuukaPosts,
+                ghost_only=ghost_only,
             )
             continue
-        logging.info('Processed all lines in file:{0!r}'.format(thread_list_path))
-    logging.info('Finished saving threads')
+        logging.info(u'Processed all lines in file:{0!r}'.format(thread_list_path))
+    logging.info(u'Finished saving threads')
+    return
+
+
+def save_threads_rsthreads(db_ses, req_ses, board_name, thread_list_path,
+    FuukaPosts, RSThreads, ghost_only=False, max_threads=None):
+    """Save multiple threads into fuuka-style DB."""
+    logging.debug(u'save_threads_rsthreads() locals()={0!r}'.format(locals()))# Record arguments
+    logging.info(u'Saving threads from RSThreads DB table')
+    # SELECT new threads
+    thread_q = db_ses.query(RSThreads)\
+    .filter(RSThreads.is_new == True,)
+    row_counter = 0
+    for thread_row in thread_q:
+        row_counter += 1
+        if (max_threads):
+            if (row_counter > max_threads):
+                logging.info('Maximum number of rows reached, stopping.')
+                break
+        thread_num = thread_row.thread_num
+        logging.debug(u'Processing thead {0!r}: {1!r}'.format(thread_num))
+
+        # Save a thread
+        save_thread_fuuka(
+            req_ses=req_ses,
+            db_ses=db_ses,
+            board_name=board_name,
+            thread_num=thread_num,
+            FuukaPosts=FuukaPosts,
+            ghost_only=ghost_only,
+        )
+        continue
+
+        # Update thread rows
+        thread_row.is_new = False
+
+        # Commit thread row changes
+        logging.info(u'Committing')
+        db_ses.commit()
+
+        logging.info('Processed thread: {0!r}'.format(thread_id))
+        continue
+
+    logging.info(u'Finished saving threads')
     return
 
 
@@ -243,22 +293,33 @@ def from_config():# TODO
     SessionClass = sqlalchemy.orm.sessionmaker(bind=engine)
     db_ses = SessionClass()
 
-    # Test saving one thread
-    save_thread_fuuka(
-        req_ses=req_ses,
-        db_ses=db_ses,
-        board_name=board_name,
-        thread_num='40312936',
-        FuukaPosts=FuukaPosts
-    )
+##    # Test saving one thread
+##    save_thread_fuuka(
+##        req_ses=req_ses,
+##        db_ses=db_ses,
+##        board_name=board_name,
+##        thread_num='40312936',
+##        FuukaPosts=FuukaPosts
+##    )
+##
+##    # Test saving multiple threads
+##    save_threads_fuuka(
+##        db_ses,
+##        req_ses,
+##        board_name,
+##        thread_list_path,
+##        FuukaPosts
+##    )
 
-    # Test saving multiple threads
-    save_threads_fuuka(
+    save_threads_rsthreads(
         db_ses,
         req_ses,
         board_name,
         thread_list_path,
-        FuukaPosts
+        FuukaPosts,
+        RSThreads,
+        ghost_only=False,
+        max_threads=None,
     )
 
     # Persist data now that thread has been grabbed
@@ -271,10 +332,6 @@ def from_config():# TODO
     engine.dispose()# Close all connections.
     logging.info(u'Exiting from_config()')
     return
-
-
-
-
 
 
 def main():

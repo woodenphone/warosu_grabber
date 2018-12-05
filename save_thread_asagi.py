@@ -107,14 +107,6 @@ def save_thread_asagi(req_ses, db_ses, board_name, thread_num, FFThreads, FFPost
     return
 
 
-
-
-
-
-
-
-
-
 def save_threads_asagi(db_ses, req_ses, board_name, thread_list_path, FFThreads, FFPosts, FFImage):
     """Save using asagi DB schema"""
     logging.debug(u'save_threads_asagi() locals()={0!r}'.format(locals()))# Record arguments
@@ -211,7 +203,14 @@ def from_config():# TODO
 
 
 def main():
-    pass
+    from_config()
 
 if __name__ == '__main__':
-    main()
+    common.setup_logging(os.path.join("debug", "save_thread_asagi.log.txt"))# Setup logging
+    try:
+        main()
+    # Log exceptions
+    except Exception, e:
+        logging.critical(u"Unhandled exception!")
+        logging.exception(e)
+    logging.info(u"Program finished.")

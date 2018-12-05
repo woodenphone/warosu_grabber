@@ -132,7 +132,7 @@ def split_thread_to_file(html, thread_num, filepath_template):
     return
 
 
-def parse_thread(html, thread_num, thread_url, board_images_path):
+def parse_thread_ghost_only(html, thread_num, thread_url, board_images_path):
     """Split into post HTML fagments
     Make sure OP is included"""
     ghost_posts = []
@@ -152,6 +152,33 @@ def parse_thread(html, thread_num, thread_url, board_images_path):
         u'thread_num':thread_num,
         u'thread_url':thread_url,
         u'ghost_posts': ghost_posts,
+    }
+    logging.debug(u'thread={0!r}'.format(thread))
+    return thread
+
+
+def parse_thread(html, thread_num, thread_url, board_images_path, ghost_only=False):
+    """Split into post HTML fagments
+    Make sure OP is included"""
+    posts = []
+    # Split thread into post HTML fragments
+    fragments = thread_parsers.split_thread_into_posts(html)
+    # Process each fragment of the page
+    for fragment in fragments:
+        if (# Skip non-ghost post in ghost-only mode.
+            ( not thread_parsers.detect_ghost_post(fragment) )# Is not a ghost post
+            and (ghost_only)# Ghost-only mode
+            ):
+            continue
+        # Extract data from post
+        post = fuuka_post(fragment, thread_num, thread_url, board_images_path)# Fuuka-style values
+        logging.debug(u'post={0!r}'.format(post))
+        posts.append(post)# Store post data
+    thread = {
+        u'ghost_only': (ghost_only),# If True only ghost-posts should be present.
+        u'thread_num': thread_num,
+        u'thread_url': thread_url,
+        u'posts': posts,
     }
     logging.debug(u'thread={0!r}'.format(thread))
     return thread
